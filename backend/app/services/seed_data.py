@@ -140,6 +140,14 @@ SYSTEM_CODE_LISTS: dict[str, list[tuple[str, str, bool]]] = {
         ("exchange", "Exchange", False),
         ("other", "Other", False),
     ],
+    "loan_category": [
+        ("mortgage", "Mortgage", False),
+        ("personal", "Personal Loan", True),
+        ("car", "Car Loan", False),
+        ("student", "Student Loan", False),
+        ("business", "Business Loan", False),
+        ("other", "Other", False),
+    ],
 }
 
 # code, symbol, decimals, name

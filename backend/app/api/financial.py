@@ -68,18 +68,21 @@ account_router = build_crud_router(
 # ---------------------------------------------------------------------------
 class PartnerOut(EntityOut):
     partner_type_cv_id: uuid_lib.UUID | None = None
+    country_id: uuid_lib.UUID | None = None
 
 
 class PartnerCreate(ORMModel):
     name: str
     description: str | None = None
     partner_type_cv_id: uuid_lib.UUID | None = None
+    country_id: uuid_lib.UUID | None = None
 
 
 class PartnerUpdate(ORMModel):
     name: str | None = None
     description: str | None = None
     partner_type_cv_id: uuid_lib.UUID | None = None
+    country_id: uuid_lib.UUID | None = None
 
 
 partner_router = build_crud_router(

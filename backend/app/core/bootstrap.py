@@ -34,6 +34,28 @@ def _run_migrations() -> bool:
         return False
 
 
+# Additive, idempotent column additions for evolving models. `create_all` and the
+# initial migration create *tables* but never alter existing ones, so new nullable
+# columns are added here so both fresh and existing databases converge (Phase 11).
+_ADDITIVE_COLUMNS: list[tuple[str, str, str]] = [
+    # (table, column, type/definition)
+    ("partner", "country_id", "UUID"),
+    ("loan", "loan_category_cv_id", "UUID"),
+]
+
+
+def _apply_additive_columns() -> None:
+    schema = settings.db_schema
+    with engine.begin() as conn:
+        for table, column, coltype in _ADDITIVE_COLUMNS:
+            conn.execute(
+                text(
+                    f'ALTER TABLE "{schema}"."{table}" '
+                    f'ADD COLUMN IF NOT EXISTS "{column}" {coltype}'
+                )
+            )
+
+
 def init_db() -> None:
     # Ensure the app schema exists first (migrations/create_all target it).
     with engine.begin() as conn:
@@ -41,6 +63,12 @@ def init_db() -> None:
 
     if not _run_migrations():
         Base.metadata.create_all(bind=engine)
+
+    # Converge additive schema changes on existing databases.
+    try:
+        _apply_additive_columns()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[bootstrap] additive column sync skipped: {exc}", flush=True)
 
     # Seed system reference data (idempotent).
     db = SessionLocal()

@@ -89,6 +89,9 @@ class Loan(BaseEntity):
     account_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         ForeignKey("account.uuid"), nullable=True
     )
+    loan_category_cv_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        ForeignKey("code_value.uuid"), nullable=True
+    )
     principal: Mapped[Decimal] = mapped_column(AMOUNT, nullable=False)
     interest_rate: Mapped[Decimal] = mapped_column(Numeric(9, 4), nullable=False)
     term_months: Mapped[int] = mapped_column(Integer, nullable=False)

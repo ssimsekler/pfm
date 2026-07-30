@@ -50,6 +50,9 @@ class Partner(BaseEntity):
     partner_type_cv_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         ForeignKey("code_value.uuid"), nullable=True
     )
+    country_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        ForeignKey("country.uuid"), nullable=True, index=True
+    )
 
 
 class Beneficiary(BaseEntity):

@@ -113,6 +113,7 @@ export const ENTITIES = {
     path: "/v1/partners",
     filterFields: [
       { name: "partner_type_cv_id", label: "Type", kind: "codeValue", listKey: "partner_type" },
+      { name: "country_id", label: "Country", kind: "ref", refEntity: "countries" },
     ],
     columns: [
       { key: "name", label: "Name" },
@@ -122,6 +123,7 @@ export const ENTITIES = {
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "partner_type_cv_id", label: "Type", type: "codeValue", listKey: "partner_type" },
+      { name: "country_id", label: "Country", type: "ref", refEntity: "countries" },
       { name: "description", label: "Description", type: "textarea" },
     ],
   },
@@ -136,8 +138,7 @@ export const ENTITIES = {
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
-      { name: "parent_id", label: "Parent", type: "ref", refEntity: "beneficiaries" },
-      { name: "level", label: "Level", type: "number" },
+      { name: "parent_id", label: "Parent", type: "ref", refEntity: "beneficiaries", help: "Level is derived automatically from the parent (top-level = 1)." },
       { name: "description", label: "Description", type: "textarea" },
     ],
   },
@@ -152,8 +153,7 @@ export const ENTITIES = {
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
-      { name: "parent_id", label: "Parent", type: "ref", refEntity: "expense-categories" },
-      { name: "level", label: "Level", type: "number" },
+      { name: "parent_id", label: "Parent", type: "ref", refEntity: "expense-categories", help: "Level is derived automatically from the parent (top-level = 1)." },
       { name: "description", label: "Description", type: "textarea" },
     ],
   },
@@ -219,6 +219,7 @@ export const ENTITIES = {
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
+      { name: "loan_category_cv_id", label: "Category", type: "codeValue", listKey: "loan_category" },
       { name: "account_id", label: "Account", type: "ref", refEntity: "accounts" },
       { name: "principal", label: "Principal", type: "number", required: true },
       { name: "interest_rate", label: "Interest Rate %", type: "number", required: true },

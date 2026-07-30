@@ -232,6 +232,7 @@ def get_installment_schedule(
 # ---------------------------------------------------------------------------
 class LoanOut(EntityOut):
     account_id: uuid_lib.UUID | None = None
+    loan_category_cv_id: uuid_lib.UUID | None = None
     principal: Decimal
     interest_rate: Decimal
     term_months: int
@@ -243,6 +244,7 @@ class LoanCreate(ORMModel):
     name: str
     description: str | None = None
     account_id: uuid_lib.UUID | None = None
+    loan_category_cv_id: uuid_lib.UUID | None = None
     principal: Decimal
     interest_rate: Decimal
     term_months: int
@@ -254,6 +256,7 @@ class LoanUpdate(ORMModel):
     name: str | None = None
     description: str | None = None
     account_id: uuid_lib.UUID | None = None
+    loan_category_cv_id: uuid_lib.UUID | None = None
     principal: Decimal | None = None
     interest_rate: Decimal | None = None
     term_months: int | None = None
