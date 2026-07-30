@@ -43,7 +43,33 @@ function decodeJwt(token) {
  * the realm hasn't been imported yet in a fresh dev environment) we fail
  * soft and continue as a guest so the UI still renders.
  */
+// Remove OIDC callback params (state/code/session_state/iss) that Keycloak
+// appends to the redirect URL. With HashRouter these land on the query string
+// of the base URL; leaving them there makes `check-sso` re-trigger on the next
+// mount, causing an endless redirect loop (a new `state` each time).
+function stripOidcParams() {
+  try {
+    const url = new URL(window.location.href);
+    let changed = false;
+    ["state", "code", "session_state", "iss", "error"].forEach((k) => {
+      if (url.searchParams.has(k)) { url.searchParams.delete(k); changed = true; }
+    });
+    if (changed) {
+      const qs = url.searchParams.toString();
+      const clean = url.origin + url.pathname + (qs ? `?${qs}` : "") + url.hash;
+      window.history.replaceState({}, document.title, clean);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function initAuth() {
+  // If we already have a password-fallback session, don't run the SSO redirect
+  // flow at all (avoids the OIDC callback/redirect loop).
+  if (fallbackToken) {
+    return true;
+  }
   try {
     keycloak = new Keycloak({
       url: KC_URL,
@@ -57,6 +83,9 @@ export async function initAuth() {
       checkLoginIframe: false,
       silentCheckSsoRedirectUri: window.location.origin + "/silent-check-sso.html",
     });
+
+    // Clean any leftover OIDC callback params so we don't loop on re-mount.
+    stripOidcParams();
 
     if (authenticated) {
       // Keep the token fresh; refresh when it has <60s of validity left.
@@ -72,6 +101,7 @@ export async function initAuth() {
     // eslint-disable-next-line no-console
     console.warn("Keycloak init failed; continuing as guest.", err);
     authenticated = false;
+    stripOidcParams();
   }
   return authenticated;
 }
