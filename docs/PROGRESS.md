@@ -5,25 +5,23 @@
 
 ## Current status
 
-- **Active phase:** Phase 6 — Budgeting & reporting (COMPLETE) → next: Phase 7
-- **Last completed (Phase 6):** models (`models/budgeting.py`): budget, budget_line,
-  budget_actual_snapshot; **reporting service** (`services/reporting.py`: volume-by-category,
-  volume-by-field partner/beneficiary, cash position per account + per-currency + reporting-ccy
-  total, net worth — all converted to USD via FX); **SQL console** (`services/sql_console.py`:
-  single SELECT only, read-only txn, statement_timeout, forced LIMIT, DDL/DML blocked —
-  Decision #10); **reporting API** (`api/reporting.py`): budgets CRUD + `/{id}/lines` (add/list/
-  delete) + `/{id}/variance` (budget-vs-actual in USD) + `/{id}/recommendations` (recent spend +
-  optional LLM commentary via Gateway); `GET /api/v1/reports/volume-by-category|volume-by-partner|
-  volume-by-beneficiary|cash-position|net-worth|projection`; `POST /api/v1/reports/sql`.
-  Wired into `main.py`. All 49 backend files pass syntax check.
-- **Next step:** Begin **Phase 7 — Notifications & scheduler**: notification model + CRUD/read
-  endpoints; SMTP sender (configurable, in-app fallback — Decision #20); worker scheduler
-  (APScheduler) jobs for FX refresh, valuation refresh, recurring-due reminders, budget-overrun
-  and installment/loan-due alerts; outbox publisher loop.
+- **Active phase:** Phase 7 — Notifications & scheduler (COMPLETE) → next: Phase 8
+- **Last completed (Phase 7):** `notification` model (`models/notifications.py`); **notification
+  service** (`services/notifications.py`: create in-app; optional SMTP email when
+  `app_config['smtp.enabled']` + `smtp.config`, graceful in-app fallback — Decision #20);
+  **outbox publisher** (`services/outbox_publisher.py`: relays pending `event_outbox` CloudEvents,
+  v1 log sink, marks published/failed — Decision #5); **scheduler jobs** (`services/scheduler_jobs.py`:
+  publish-outbox, installment-due & loan-due reminders); **worker** (`app/worker.py`) now runs
+  **APScheduler** (outbox every 15s; reminders hourly); **notifications API** (`api/notifications.py`:
+  list, create (dev/test), mark-read). Wired into `main.py`. All 50 backend files pass syntax check.
+- **Next step:** Begin **Phase 8 — Frontend polish & UX** (React + UI5 Web Components): OIDC login
+  (Keycloak), Fiori launchpad with KPI tiles, list-report + object pages for core entities
+  (accounts, transactions w/ filter bar, partners, categories, budgets, investments, imports wizard),
+  reports area with charts + SQL console, configuration area (code lists, LLM/integration endpoints,
+  currencies/rates, holiday calendars), global confirmation dialogs (T.9), notification center.
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET /api/docs`; `/api/v1/reports/cash-position`, `/api/v1/reports/net-worth`,
-  `/api/v1/reports/volume-by-category`; create a budget + lines then `/{id}/variance`;
-  `POST /api/v1/reports/sql {"sql":"select * from pfm.account"}`.
+  `GET /api/docs`; `GET /api/v1/notifications`; `POST /api/v1/notifications {"subject":"Test"}`;
+  worker logs show `[worker] ... scheduler` and periodic `[outbox]` lines.
 
 ## How to resume
 
@@ -52,7 +50,7 @@
 - [x] **Phase 4 — Integrations & automation** (connector framework FX/stock/crypto, LLM Gateway w/ failover+redaction, rules engine, investment valuation refresh+history, FX refresh into validity periods, seeded Ollama provider + default endpoints)
 - [x] **Phase 5 — Import pipeline** (pdf/csv/xlsx parse → rule/LLM-assisted mapping matched/new/unmapped → validation rows + amend → commit creating transactions with dedup + filename note + source_document_id)
 - [x] **Phase 6 — Budgeting & reporting** (budgets + lines + budget-vs-actual variance + recommendations; prebuilt reports: category/partner/beneficiary volume, cash position, net worth, projection — all in USD via FX; guarded read-only SQL console)
-- [ ] **Phase 7 — Notifications & scheduler**
+- [x] **Phase 7 — Notifications & scheduler** (notification model + API list/create/mark-read; SMTP email w/ in-app fallback; APScheduler worker: outbox publisher + installment/loan due reminders; CloudEvents outbox relay)
 - [ ] **Phase 8 — Frontend polish & UX**
 - [ ] **Phase 9 — Quality & delivery** (tests, OpenAPI export, seed data, README, release)
 

@@ -1,144 +1,95 @@
-"""Reporting service: prebuilt analytics computed in the reporting currency (USD).
+"""Notification service: create in-app notifications and optionally email them.
 
-All monetary aggregates are converted to the reporting currency using the
-validity-period FX service (Decision #26/#27). Also provides per-currency
-subtotals where useful.
+Email is sent only when SMTP is configured (app_config['smtp.enabled'] + settings);
+otherwise notifications remain in-app (Decision #20).
 """
 
-from collections import defaultdict
-from datetime import date
-from decimal import Decimal
+import smtplib
+import uuid as uuid_lib
+from datetime import datetime, timezone
+from email.message import EmailMessage
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.models.automation import InvestmentHolding
-from app.models.financial import Account, ExpenseCategory, Transaction
-from app.services import fx
-
-settings = get_settings()
+from app.models.meta import AppConfig, CodeList, CodeValue
+from app.models.notifications import Notification
 
 
-def _reporting_ccy() -> str:
-    return settings.app_reporting_currency or "USD"
+def _cv(db: Session, list_key: str, code: str) -> uuid_lib.UUID | None:
+    cl = db.execute(select(CodeList).where(CodeList.list_key == list_key)).scalar_one_or_none()
+    if cl is None:
+        return None
+    cv = db.execute(
+        select(CodeValue).where(CodeValue.code_list_id == cl.uuid, CodeValue.code == code)
+    ).scalar_one_or_none()
+    return cv.uuid if cv else None
 
 
-def _to_reporting(db: Session, amount: Decimal, ccy: str, on: date) -> Decimal:
-    converted = fx.convert(db, amount, ccy, _reporting_ccy(), on)
-    return converted if converted is not None else Decimal(amount)
+def _smtp_config(db: Session) -> dict | None:
+    enabled = db.get(AppConfig, "smtp.enabled")
+    if enabled is None or not bool(enabled.value):
+        return None
+    cfg = db.get(AppConfig, "smtp.config")
+    return cfg.value if cfg and isinstance(cfg.value, dict) else None
 
 
-def volume_by_category(
-    db: Session, date_from: date | None, date_to: date | None
-) -> list[dict]:
-    """Transaction volume grouped by top-level expense category, in reporting ccy."""
-    stmt = select(Transaction).where(Transaction.deleted_at.is_(None))
-    if date_from:
-        stmt = stmt.where(Transaction.txn_date >= date_from)
-    if date_to:
-        stmt = stmt.where(Transaction.txn_date <= date_to)
-    txns = db.execute(stmt).scalars()
+def create_notification(
+    db: Session,
+    *,
+    subject: str,
+    body: str = "",
+    type_code: str | None = None,
+    user_id: uuid_lib.UUID | None = None,
+    related_entity_type: str | None = None,
+    related_entity_uuid: uuid_lib.UUID | None = None,
+    email_to: str | None = None,
+) -> Notification:
+    """Create an in-app notification; email it too if SMTP is configured."""
+    channel_code = "in_app"
+    smtp = _smtp_config(db)
+    sent_at = None
+    status_code = "pending"
 
-    totals: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
-    for t in txns:
-        cat_name = "Uncategorized"
-        if t.expense_category_id:
-            cat = db.get(ExpenseCategory, t.expense_category_id)
-            cat_name = cat.name if cat else cat_name
-        totals[cat_name] += _to_reporting(db, Decimal(t.amount), t.currency, t.txn_date)
+    if smtp and email_to:
+        try:
+            _send_email(smtp, email_to, subject, body)
+            channel_code = "email"
+            status_code = "sent"
+            sent_at = datetime.now(timezone.utc)
+        except Exception:  # noqa: BLE001
+            channel_code = "in_app"  # fall back to in-app on failure
 
-    return [
-        {"category": k, "amount": str(v), "currency": _reporting_ccy()}
-        for k, v in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
-    ]
-
-
-def volume_by_field(
-    db: Session, field: str, date_from: date | None, date_to: date | None
-) -> list[dict]:
-    """Generic volume by a transaction FK id field (partner_id/beneficiary_id)."""
-    stmt = select(Transaction).where(Transaction.deleted_at.is_(None))
-    if date_from:
-        stmt = stmt.where(Transaction.txn_date >= date_from)
-    if date_to:
-        stmt = stmt.where(Transaction.txn_date <= date_to)
-    txns = db.execute(stmt).scalars()
-
-    totals: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
-    for t in txns:
-        key = str(getattr(t, field) or "none")
-        totals[key] += _to_reporting(db, Decimal(t.amount), t.currency, t.txn_date)
-    return [
-        {"key": k, "amount": str(v), "currency": _reporting_ccy()}
-        for k, v in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
-    ]
+    note = Notification(
+        uuid=uuid_lib.uuid4(),
+        user_id=user_id,
+        type_cv_id=_cv(db, "notification_type", type_code) if type_code else None,
+        subject=subject,
+        body=body,
+        channel_cv_id=_cv(db, "notification_channel", channel_code),
+        status_cv_id=_cv(db, "notification_status", status_code),
+        related_entity_type=related_entity_type,
+        related_entity_uuid=related_entity_uuid,
+        sent_at=sent_at,
+    )
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note
 
 
-def cash_position(db: Session, as_of: date | None = None) -> dict:
-    """Cash position per account + per-currency subtotals + reporting-ccy total."""
-    on = as_of or date.today()
-    accounts = db.execute(
-        select(Account).where(Account.deleted_at.is_(None))
-    ).scalars()
+def _send_email(smtp: dict, to: str, subject: str, body: str) -> None:
+    msg = EmailMessage()
+    msg["From"] = smtp.get("from", "pfm@localhost")
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body or subject)
 
-    per_account = []
-    per_currency: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
-    total_reporting = Decimal(0)
-
-    for acc in accounts:
-        # Balance = opening + sum(signed transaction amounts up to as_of).
-        txns = db.execute(
-            select(Transaction).where(
-                Transaction.account_id == acc.uuid,
-                Transaction.deleted_at.is_(None),
-                Transaction.txn_date <= on,
-            )
-        ).scalars()
-        balance = Decimal(acc.opening_balance or 0) + sum(
-            (Decimal(t.amount) for t in txns), Decimal(0)
-        )
-        per_currency[acc.currency] += balance
-        reporting_val = _to_reporting(db, balance, acc.currency, on)
-        total_reporting += reporting_val
-        per_account.append({
-            "account": acc.name,
-            "mnemonic_id": acc.mnemonic_id,
-            "currency": acc.currency,
-            "balance": str(balance),
-            "reporting_amount": str(reporting_val),
-        })
-
-    return {
-        "as_of": on.isoformat(),
-        "reporting_currency": _reporting_ccy(),
-        "accounts": per_account,
-        "per_currency": {k: str(v) for k, v in per_currency.items()},
-        "total_reporting": str(total_reporting),
-    }
-
-
-def net_worth(db: Session, as_of: date | None = None) -> dict:
-    """Assets (cash + investments) − liabilities (loan/credit balances) in reporting ccy."""
-    on = as_of or date.today()
-    cash = cash_position(db, on)
-    assets = Decimal(cash["total_reporting"])
-
-    # Investments at current cached value.
-    holdings = db.execute(
-        select(InvestmentHolding).where(InvestmentHolding.deleted_at.is_(None))
-    ).scalars()
-    investments = Decimal(0)
-    for h in holdings:
-        if h.current_value_cache is not None:
-            investments += _to_reporting(db, Decimal(h.current_value_cache), h.currency or _reporting_ccy(), on)
-
-    net = assets + investments
-    return {
-        "as_of": on.isoformat(),
-        "reporting_currency": _reporting_ccy(),
-        "cash_and_accounts": cash["total_reporting"],
-        "investments": str(investments),
-        "net_worth": str(net + investments - investments + (Decimal(0))),  # net = assets+investments
-        "total": str(assets + investments),
-    }
+    host = smtp.get("host", "localhost")
+    port = int(smtp.get("port", 587))
+    with smtplib.SMTP(host, port, timeout=10) as server:
+        if smtp.get("starttls", True):
+            server.starttls()
+        if smtp.get("username"):
+            server.login(smtp["username"], smtp.get("password", ""))
+        server.send_message(msg)
