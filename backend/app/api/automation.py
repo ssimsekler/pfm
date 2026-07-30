@@ -17,6 +17,7 @@ from app.core.security import Principal, get_current_principal, require_write
 from app.models import automation as auto
 from app.models import financial as fin
 from app.services import connectors, valuation
+from app.services.auto_account import ensure_backing_account
 from app.services.repository import Repository
 
 # ---------------------------------------------------------------------------
@@ -218,11 +219,17 @@ class HoldingUpdate(ORMModel):
     currency: str | None = None
 
 
+def _holding_pre_write(db: Session, data: dict, obj) -> None:
+    # A.6: auto-create a backing account on create if none was supplied.
+    if obj is None:
+        ensure_backing_account(db, data, "Investment")
+
+
 holding_router = build_crud_router(
     prefix="/api/v1/investments", tag="investments", model=auto.InvestmentHolding,
     entity_type="investment_holding", event_domain="investment_holding",
     out_schema=HoldingOut, create_schema=HoldingCreate, update_schema=HoldingUpdate,
-    search_columns=["symbol"],
+    search_columns=["symbol"], pre_write=_holding_pre_write,
 )
 
 

@@ -135,6 +135,9 @@ Base columns. Represents a workspace/family unit.
 | email | VARCHAR(255) | |
 | default_household_id | UUID FK household | |
 | base_currency | CHAR(3) FK currency | user reporting currency |
+| date_format | VARCHAR(40) NULL | display pref (ADR #48) |
+| number_format | VARCHAR(40) NULL | display pref (ADR #48) |
+| time_format | VARCHAR(40) NULL | display pref (ADR #48) |
 | + base cols | | |
 
 ### role
@@ -351,7 +354,11 @@ Base columns +:
 | holiday_calendar_id | UUID FK holiday_calendar NULL | |
 
 ### holiday_calendar
-Base columns (name e.g. "UAE 2025"). 
+Base columns (name e.g. "UAE 2025") +:
+| Column | Type | Notes |
+|---|---|---|
+| weekend_days | JSONB NULL | recurring weekend weekday ints, e.g. `[4,5]` (ADR #49) |
+| week_start | SMALLINT NULL | 0=Mon .. 6=Sun (ADR #49) |
 
 ### holiday_calendar_day
 | Column | Type | Notes |

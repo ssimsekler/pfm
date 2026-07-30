@@ -41,6 +41,14 @@ _ADDITIVE_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, type/definition)
     ("partner", "country_id", "UUID"),
     ("loan", "loan_category_cv_id", "UUID"),
+    # app_user display-format preferences + name (Phase 11 Batch 3, A.7 / profile).
+    ("app_user", "name", "VARCHAR(160)"),
+    ("app_user", "date_format", "VARCHAR(40)"),
+    ("app_user", "number_format", "VARCHAR(40)"),
+    ("app_user", "time_format", "VARCHAR(40)"),
+    # holiday_calendar weekend/week-start config (Phase 11 Batch 3, A.1).
+    ("holiday_calendar", "weekend_days", "JSONB"),
+    ("holiday_calendar", "week_start", "SMALLINT"),
 ]
 
 

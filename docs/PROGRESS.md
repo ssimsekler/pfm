@@ -22,9 +22,14 @@
     cache clears after writes + excludes self as parent (#3); confirm-on-cancel-if-dirty / delete /
     import-commit / import-replace (#38); Reports use **Recharts** (volume pies incl. supplier &
     beneficiary) (#13 partial). All pages rebuilt on MUI; frontend builds and serves 200.
-  - **Round 2 Batch 3 (TODO):** budget lines UI (#6); expense-category CSV seed (#8); holiday
-    calendar weekend/week-start + day editor (A.1); loan/investment auto-account (A.6); app_config
-    settings screen (A.7); user profile; entity-prefix maintenance; country-aware import mapping.
+  - **Round 2 Batch 3 (DONE):** budget lines UI (#6) + expense-category CSV seed (#8) [ADR #47];
+    **App Settings** screen incl. LLM master switch + **Entity Prefixes** + **My Profile**
+    (backend `admin.py`: `/v1/app-config`, `/v1/id-sequences`, `/v1/profile`; `app_user` gains
+    name + date/number/time-format prefs) [ADR #48]; **holiday calendar** weekend/week-start +
+    day editor (`HolidayDaysDialog` row action; `weekend_days`/`week_start` + delete-day endpoint)
+    (A.1) [ADR #49]; **loan/investment auto-create backing account** via `pre_write` hook (A.6)
+    [ADR #50]; **country-aware import mapping** (parser date/number locale + `country` on upload +
+    Imports country selector) (#4) [ADR #51]. Frontend builds; backend files compile clean.
   - **Round 2 Batch 4 (TODO):** more reports (projection line, budget-vs-actual, monthly trend);
     installment/loan payment tracking (#15/#16); investment valuation history (#18); recurring
     items UI (#19); transfers dialog (A.5); auth: admin user + Users admin + password fallback (#14);

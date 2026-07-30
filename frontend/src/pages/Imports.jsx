@@ -12,6 +12,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 
 const ACCOUNT_FIELD = { type: "ref", refEntity: "accounts" };
 const CCY_FIELD = { type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" };
+const COUNTRY_FIELD = { type: "ref", refEntity: "countries", refValue: "iso2", refLabel: "name" };
 
 export default function Imports() {
   const [imports, setImports] = useState([]);
@@ -19,6 +20,7 @@ export default function Imports() {
   const [rows, setRows] = useState([]);
   const [accountId, setAccountId] = useState("");
   const [defaultCcy, setDefaultCcy] = useState("AED");
+  const [country, setCountry] = useState("");
   const [msg, setMsg] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,7 @@ export default function Imports() {
     if (!file) return;
     setBusy(true); setErr(null); setMsg(null);
     try {
-      const doc = await api.upload("/v1/imports", file);
+      const doc = await api.upload("/v1/imports", file, country ? { country } : {});
       setMsg(`Uploaded & parsed: ${doc.original_filename}`);
       await loadImports();
       await openImport(doc);
@@ -69,10 +71,16 @@ export default function Imports() {
         <Card>
           <CardHeader title="1 · Upload a file" subheader="PDF, CSV or XLSX" />
           <CardContent>
-            <Button component="label" variant="contained" startIcon={<UploadFileIcon />} disabled={busy}>
-              Choose file…
-              <input type="file" accept=".csv,.xlsx,.xls,.pdf" hidden onChange={onUpload} />
-            </Button>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap: "wrap" }}>
+              <Box sx={{ minWidth: 220 }}>
+                <ComboField field={COUNTRY_FIELD} value={country} onChange={setCountry}
+                  label="Statement country (date/number format)" />
+              </Box>
+              <Button component="label" variant="contained" startIcon={<UploadFileIcon />} disabled={busy}>
+                Choose file…
+                <input type="file" accept=".csv,.xlsx,.xls,.pdf" hidden onChange={onUpload} />
+              </Button>
+            </Stack>
           </CardContent>
         </Card>
 

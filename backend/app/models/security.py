@@ -20,11 +20,16 @@ class AppUser(BaseEntity):
 
     __tablename__ = "app_user"
 
+    name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     default_household_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         ForeignKey("household.uuid"), nullable=True
     )
     base_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    # Display-format preferences (Phase 11 Batch 3, A.7 / profile).
+    date_format: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    number_format: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    time_format: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class Role(BaseEntity):

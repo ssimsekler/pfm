@@ -46,6 +46,7 @@ import Reports from "./pages/Reports";
 import Imports from "./pages/Imports";
 import Notifications from "./pages/Notifications";
 import Configuration from "./pages/Configuration";
+import Settings from "./pages/Settings";
 import Export from "./pages/Export";
 
 const DRAWER_WIDTH = 250;
@@ -69,6 +70,8 @@ const SCREENS = {
   imports: () => <Imports />,
   notifications: () => <Notifications />,
   configuration: () => <Configuration />,
+  settings: () => <Settings />,
+  profile: () => <Settings section="profile" />,
   export: () => <Export />,
 };
 
@@ -107,6 +110,7 @@ const NAV = [
   { label: "Export", key: "export", icon: <DownloadIcon /> },
   { label: "Notifications", key: "notifications", icon: <NotificationsIcon /> },
   { label: "Configuration", key: "configuration", icon: <SettingsIcon /> },
+  { label: "Settings", key: "settings", icon: <SettingsIcon /> },
 ];
 
 function Shell({ user }) {
@@ -157,7 +161,7 @@ function Shell({ user }) {
             <Divider />
             {user.authenticated ? (
               [
-                <MenuItem key="profile" onClick={() => { setAnchorEl(null); go("configuration"); }}>My Profile</MenuItem>,
+                <MenuItem key="profile" onClick={() => { setAnchorEl(null); go("profile"); }}>My Profile</MenuItem>,
                 <MenuItem key="logout" onClick={() => { setAnchorEl(null); logout(); }}>Sign out</MenuItem>,
               ]
             ) : (

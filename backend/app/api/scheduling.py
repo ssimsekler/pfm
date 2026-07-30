@@ -17,23 +17,29 @@ from app.core.security import Principal, get_current_principal, require_write
 from app.models import financial as fin
 from app.models import scheduling as sch
 from app.services import recurrence, schedules
+from app.services.auto_account import ensure_backing_account
 from app.services.repository import Repository
 
 # ---------------------------------------------------------------------------
 # Holiday calendar (+ days)
 # ---------------------------------------------------------------------------
 class HolidayCalendarOut(EntityOut):
-    pass
+    weekend_days: list[int] | None = None
+    week_start: int | None = None
 
 
 class HolidayCalendarCreate(ORMModel):
     name: str
     description: str | None = None
+    weekend_days: list[int] | None = None
+    week_start: int | None = None
 
 
 class HolidayCalendarUpdate(ORMModel):
     name: str | None = None
     description: str | None = None
+    weekend_days: list[int] | None = None
+    week_start: int | None = None
 
 
 holiday_calendar_router = build_crud_router(
@@ -85,6 +91,21 @@ def list_holiday_days(
         sch.HolidayCalendarDay.calendar_id == calendar_id
     ).order_by(sch.HolidayCalendarDay.holiday_date)
     return list(db.execute(stmt).scalars())
+
+
+@holiday_calendar_router.delete("/{calendar_id}/days/{day_id}", status_code=204)
+def delete_holiday_day(
+    calendar_id: uuid_lib.UUID,
+    day_id: uuid_lib.UUID,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    row = db.get(sch.HolidayCalendarDay, day_id)
+    if row is None or row.calendar_id != calendar_id:
+        raise HTTPException(status_code=404, detail="holiday day not found")
+    db.delete(row)
+    db.commit()
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -264,10 +285,17 @@ class LoanUpdate(ORMModel):
     currency: str | None = None
 
 
+def _loan_pre_write(db: Session, data: dict, obj) -> None:
+    # A.6: auto-create a backing account on create if none was supplied.
+    if obj is None:
+        ensure_backing_account(db, data, "Loan")
+
+
 loan_router = build_crud_router(
     prefix="/api/v1/loans", tag="loans", model=sch.Loan,
     entity_type="loan", event_domain="loan",
     out_schema=LoanOut, create_schema=LoanCreate, update_schema=LoanUpdate,
+    pre_write=_loan_pre_write,
 )
 
 

@@ -16,7 +16,7 @@ import uuid as uuid_lib
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -85,6 +85,7 @@ class CommitIn(BaseModel):
 @router.post("", response_model=ImportOut, status_code=201)
 async def upload_import(
     file: UploadFile = File(...),
+    country: str | None = Form(None),
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_write),
 ):
@@ -103,9 +104,9 @@ async def upload_import(
         },
     )
 
-    # Parse + map immediately.
+    # Parse + map immediately (country biases date/number formats — #4).
     try:
-        parsed = import_parser.parse(content, file.filename or "", file.content_type)
+        parsed = import_parser.parse(content, file.filename or "", file.content_type, country=country)
     except Exception as exc:  # noqa: BLE001
         _import_repo.update(db, doc, {
             "status_cv_id": _cv(db, "import_status", "failed"),

@@ -4,7 +4,7 @@ import uuid as uuid_lib
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Date, ForeignKey, Integer, Numeric, SmallInteger, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +15,11 @@ AMOUNT = Numeric(18, 4)
 
 class HolidayCalendar(BaseEntity):
     __tablename__ = "holiday_calendar"
+
+    # A.1: recurring weekend config + week-start (0=Mon .. 6=Sun, ISO-ish).
+    # weekend_days is a JSON list of weekday integers (e.g. [4, 5] for Fri/Sat).
+    weekend_days: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    week_start: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
 
 class HolidayCalendarDay(Base):
