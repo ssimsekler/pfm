@@ -55,10 +55,19 @@ cd infra
 docker compose up -d --build
 ```
 
+> **Hot-reload dev mode (recommended while editing):** `infra/docker-compose.override.yml`
+> is merged automatically by `docker compose`, running the **frontend via Vite (HMR)** and the
+> **backend/worker with `--reload`**, both with the source bind-mounted — so code edits appear on
+> a browser refresh (frontend) or automatically (backend) **without rebuilding images**. Just
+> `cd infra && docker compose up -d`. To run the **production-style** build instead (nginx static
+> + plain uvicorn), use only the base file: `docker compose -f docker-compose.yml up -d --build`.
+
 Services (via Traefik on http://localhost):
 - Frontend SPA: `/`
 - Backend API + docs: `/api`, `/api/docs`
-- Keycloak: `/auth`
+- Keycloak: `/auth` — admin console at `/auth/admin` (or directly `:8082`); sign in with
+  `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD` from `.env`. A default realm **admin** user
+  (password `admin`, Owner) is seeded for first app login — change it in the console.
 - **Adminer** (lightweight DB GUI): `:8081` (server `db`)
 - MinIO console (object-store admin GUI): `:9001`
 - Ollama (local LLM): `:11434`

@@ -1,0 +1,48 @@
+# Dev override for a hot-reload workflow (ADR #60).
+#
+# Docker Compose automatically merges this file on top of docker-compose.yml when
+# you run `docker compose up` from the `infra/` directory. It makes the frontend
+# run Vite's dev server (HMR) and the backend/worker run with --reload, both with
+# the source bind-mounted — so code edits show up on a browser refresh (frontend)
+# or automatically (backend) WITHOUT rebuilding images.
+#
+# Usage:
+#   cd infra
+#   docker compose up -d            # dev mode (this override is applied)
+#
+# To run the production-style build instead (nginx static + uvicorn, no reload):
+#   docker compose -f docker-compose.yml up -d --build
+#
+# Notes:
+#  - The frontend dev server binds port 80 inside the container so Traefik's
+#    existing route (http://frontend:80) keeps working unchanged.
+#  - Named/anonymous volumes for node_modules and the Python venv-less site are
+#    NOT needed: the frontend uses an anonymous volume to keep the image's
+#    node_modules; the backend installs deps into the image and only mounts source.
+services:
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      target: build # node stage (has npm + installed deps)
+    command: ["npm", "run", "dev"]
+    working_dir: /app
+    environment:
+      # Vite reads these at dev-server runtime (import.meta.env.*).
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+      VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL}
+      VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM}
+      VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID}
+    volumes:
+      - ../frontend:/app # live source
+      - /app/node_modules # keep the image's installed deps (don't shadow with host)
+
+  backend:
+    volumes:
+      - ../backend:/app # live source
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  worker:
+    volumes:
+      - ../backend:/app # live source
