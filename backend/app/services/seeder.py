@@ -1,10 +1,14 @@
 """Idempotent seeding of system reference data (runs at startup)."""
 
+import csv
+import os
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.automation import IntegrationEndpoint, LlmProvider
+from app.models.financial import ExpenseCategory
 from app.models.meta import AppConfig, CodeList, CodeValue
 from app.models.reference import Country, Currency
 from app.models.security import Role
@@ -22,7 +26,63 @@ def seed_all(db: Session) -> None:
     _seed_app_config(db)
     _seed_ollama_provider(db)
     _seed_integration_endpoints(db)
+    _seed_expense_categories(db)
     db.commit()
+
+
+def _seed_expense_categories(db: Session) -> None:
+    """Seed a default expense-category hierarchy from a bundled CSV (#8, ADR #47).
+
+    Idempotent: skips names that already exist. Parents are resolved by name;
+    `level` is derived (parent.level + 1, else 1)."""
+    # Only seed if there are no categories yet (don't fight user edits later).
+    existing_any = db.execute(select(ExpenseCategory.uuid).limit(1)).first()
+    if existing_any is not None:
+        return
+    path = os.path.join(os.path.dirname(__file__), "seed_expense_categories.csv")
+    if not os.path.exists(path):
+        return
+    by_name: dict[str, ExpenseCategory] = {}
+    with open(path, newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    # Two passes so parents are created before children regardless of row order.
+    def _create(name: str, parent_name: str | None) -> ExpenseCategory:
+        parent = by_name.get(parent_name) if parent_name else None
+        level = (parent.level + 1) if parent else 1
+        cat = ExpenseCategory(
+            mnemonic_id=next_mnemonic(db, "expense_category"),
+            name=name,
+            parent_id=parent.uuid if parent else None,
+            level=level,
+        )
+        db.add(cat)
+        db.flush()
+        by_name[name] = cat
+        return cat
+
+    # Pass 1: roots (no parent).
+    for r in rows:
+        if not (r.get("parent") or "").strip():
+            nm = (r.get("name") or "").strip()
+            if nm and nm not in by_name:
+                _create(nm, None)
+    # Pass 2: children (may need multiple passes for deeper nesting).
+    pending = [r for r in rows if (r.get("parent") or "").strip()]
+    for _ in range(5):
+        still: list[dict] = []
+        for r in pending:
+            nm = (r.get("name") or "").strip()
+            pn = (r.get("parent") or "").strip()
+            if not nm or nm in by_name:
+                continue
+            if pn in by_name:
+                _create(nm, pn)
+            else:
+                still.append(r)
+        pending = still
+        if not pending:
+            break
+    db.flush()
 
 
 def _code_value(db: Session, list_key: str, code: str):

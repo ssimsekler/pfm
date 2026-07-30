@@ -1,0 +1,54 @@
+parent,name
+,Housing
+Housing,Rent
+Housing,Mortgage
+Housing,Utilities
+Housing,Maintenance
+Housing,Home Insurance
+,Transportation
+Transportation,Fuel
+Transportation,Public Transport
+Transportation,Vehicle Maintenance
+Transportation,Parking & Tolls
+Transportation,Car Insurance
+,Food & Dining
+Food & Dining,Groceries
+Food & Dining,Restaurants
+Food & Dining,Coffee & Snacks
+,Health
+Health,Doctor
+Health,Pharmacy
+Health,Health Insurance
+Health,Fitness
+,Education
+Education,Tuition
+Education,Books & Supplies
+Education,Courses
+,Entertainment
+Entertainment,Streaming
+Entertainment,Movies & Events
+Entertainment,Hobbies
+Entertainment,Travel
+,Shopping
+Shopping,Clothing
+Shopping,Electronics
+Shopping,Household Goods
+,Personal Care
+Personal Care,Haircut & Grooming
+Personal Care,Cosmetics
+,Financial
+Financial,Bank Fees
+Financial,Interest
+Financial,Taxes
+Financial,Investments
+,Income
+Income,Salary
+Income,Bonus
+Income,Interest Income
+Income,Dividends
+Income,Other Income
+,Gifts & Donations
+Gifts & Donations,Gifts
+Gifts & Donations,Charity
+,Miscellaneous
+Miscellaneous,Other

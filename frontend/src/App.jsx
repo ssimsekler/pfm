@@ -40,6 +40,7 @@ import { initAuth, getUser, login, logout } from "./auth";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
 import CashFlowItems from "./pages/CashFlowItems";
+import Budgets from "./pages/Budgets";
 import EntityList from "./pages/EntityList";
 import Reports from "./pages/Reports";
 import Imports from "./pages/Imports";
@@ -63,7 +64,7 @@ const SCREENS = {
   loans: () => <EntityList entity="loans" />,
   "installment-plans": () => <EntityList entity="installment-plans" />,
   goals: () => <EntityList entity="goals" />,
-  budgets: () => <EntityList entity="budgets" />,
+  budgets: () => <Budgets />,
   reports: () => <Reports />,
   imports: () => <Imports />,
   notifications: () => <Notifications />,
