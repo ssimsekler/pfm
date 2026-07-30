@@ -5,27 +5,25 @@
 
 ## Current status
 
-- **Active phase:** Phase 2 — Core financial APIs (IN PROGRESS)
-- **Last completed (Phase 2 so far):** financial models (`models/financial.py`: account,
-  partner, beneficiary, expense_category, cash_flow_item, transfer_group, transaction,
-  transaction_split, tag, entity_tag, attachment, currency_rate with validity periods);
-  registered in `models/__init__`; **FX service** (`services/fx.py`: validity-period lookup
-  `begin<=date<end` + inverse + fallbacks + convert); shared API schemas + generic CRUD router
-  factory (`api/crud_router.py`); **CRUD routers** for accounts, partners, beneficiaries,
-  expense-categories, cash-flow-items, tags (search/sort/pagination, RBAC write guard, audit,
-  events); dedicated **transactions router** with rich filters (account/partner/beneficiary/
-  category/cash_flow_item/status/currency/date-range/amount-range) + **Policy 1** enforcement;
-  **transfers** (dual-leg → 2 txns + transfer_group, cross-currency fx_rate) and
-  **currency-rates CRUD** + `GET /api/v1/fx/convert`. Routers wired into `main.py`.
-  All 28 backend files pass syntax check (full runtime validated via docker compose).
-- **Next step (Phase 2 remaining):** attachments upload (MinIO) + entity_tag assignment
-  endpoints; account→institution/country value help already available via `/code-lists` +
-  country/institution CRUD (add simple routers); generate the first real **Alembic migration**
-  to replace `create_all`; add the `currency_rate` GiST no-overlap constraint (Decision #26)
-  in that migration. Then Phase 3.
+- **Active phase:** Phase 2 — Core financial APIs (COMPLETE) → next: Phase 3
+- **Last completed (Phase 2):** financial models (account, partner, beneficiary,
+  expense_category, cash_flow_item, transfer_group, transaction, transaction_split, tag,
+  entity_tag, attachment, currency_rate w/ validity periods); FX service (validity-period
+  lookup + inverse + convert); generic CRUD router factory; CRUD routers for accounts,
+  partners, beneficiaries, expense-categories, cash-flow-items, tags; **country + institution
+  + currency** reference routers; dedicated **transactions** router (rich filters + Policy 1);
+  **transfers** (dual-leg); **currency-rates CRUD** + `GET /api/v1/fx/convert`; **attachments**
+  upload/download via MinIO (`services/storage.py`) + **entity-tag** assignment; and the first
+  real **Alembic migration** `0001_initial` (creates all tables, enables `pg_trgm`+`btree_gist`,
+  adds the `currency_rate` GiST no-overlap exclusion constraint). Bootstrap now runs
+  `alembic upgrade head` (falls back to create_all). All 33 backend files pass syntax check.
+- **Next step:** Begin **Phase 3 — Recurrence, installments, loans, goals, income**:
+  recurrence_profile + holiday_calendar(+days) models & engine (weekly/nth-day/last-bday with
+  business-day rules), installment_plan(+schedule), loan(+amortization_schedule), goal;
+  pending-recurring list + materialize-to-transaction; wire cash_flow_item recurrence.
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET /api/ready`, `/api/v1/code-lists`, `/api/v1/accounts`, `/api/v1/transactions`,
-  `/api/v1/fx/convert?amount=100&from_ccy=AED&to_ccy=USD`.
+  `GET /api/docs`, `/api/v1/accounts`, `/api/v1/transactions?date_from=2025-01-01`,
+  `/api/v1/institutions`, `/api/v1/fx/convert?amount=100&from_ccy=AED&to_ccy=USD`.
 
 ## How to resume
 
@@ -49,7 +47,7 @@
   - [x] `.gitignore`, `README.md`, `LICENSE`, `.dockerignore` files
   - [x] git init, first commit, attempt push to remote
 - [x] **Phase 1 — Data & platform core** (models, base mixin, id-sequence, outbox+audit, Keycloak/RBAC, code_list/code_value + seed system code lists, value-help endpoints, generic Repository with search/filter/sort/pagination; Alembic scaffolded — first real migration pending in Phase 2)
-- [ ] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup)
+- [x] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup, country/institution/currency reference routers, first Alembic migration + FX no-overlap constraint)
 - [ ] **Phase 3 — Recurrence, installments, loans, goals, income**
 - [ ] **Phase 4 — Integrations & automation** (connector framework, FX/stock/crypto, LLM Gateway, rules engine, valuation refresh)
 - [ ] **Phase 5 — Import pipeline** (pdf/csv/xlsx → mapping → preview → commit, dedup, filename note)

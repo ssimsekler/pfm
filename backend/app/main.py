@@ -9,7 +9,9 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app import __version__
+from app.api.attachments_tags import ALL_ROUTERS as ATTACH_TAG_ROUTERS
 from app.api.financial import ALL_ROUTERS as FINANCIAL_ROUTERS
+from app.api.reference import ALL_ROUTERS as REFERENCE_ROUTERS
 from app.api.transfers_fx import ALL_ROUTERS as TRANSFERS_FX_ROUTERS
 from app.api.value_help import router as value_help_router
 from app.core.bootstrap import init_db
@@ -34,7 +36,12 @@ app = FastAPI(
 )
 
 app.include_router(value_help_router)
-for _router in [*FINANCIAL_ROUTERS, *TRANSFERS_FX_ROUTERS]:
+for _router in [
+    *REFERENCE_ROUTERS,
+    *FINANCIAL_ROUTERS,
+    *TRANSFERS_FX_ROUTERS,
+    *ATTACH_TAG_ROUTERS,
+]:
     app.include_router(_router)
 
 
