@@ -64,3 +64,5 @@
 - Confirmation dialogs (T.9) are UI-only.
 - `pip` is blocked on the build host; backend/pytest run inside the container image.
 - Data export (ADR #29): `GET /api/v1/export/xlsx` + `POST /api/v1/export/to-folder`.
+- DB admin GUIs (ADR #30, dev utilities): **pgAdmin** at `/pgadmin`, **Adminer** at `:8081`,
+  MinIO console at `:9001`. Connect to Postgres via host `db`, port `5432`.

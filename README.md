@@ -52,8 +52,13 @@ Services (via Traefik on http://localhost):
 - Frontend SPA: `/`
 - Backend API + docs: `/api`, `/api/docs`
 - Keycloak: `/auth`
-- MinIO console: `:9001`
+- **pgAdmin** (PostgreSQL admin GUI): `/pgadmin`
+- **Adminer** (lightweight DB GUI): `:8081` (server `db`)
+- MinIO console (object-store admin GUI): `:9001`
 - Ollama (local LLM): `:11434`
+
+> DB admin GUIs are **dev utilities**. Connect them to Postgres with host `db`, port `5432`,
+> and the `POSTGRES_USER`/`POSTGRES_PASSWORD` from your `.env`.
 
 Pull a local model after first start (used by the LLM Gateway as a default provider):
 

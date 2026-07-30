@@ -31,6 +31,33 @@ services:
       timeout: 5s
       retries: 10
 
+  # ---- DB admin GUI (dev utility): full-featured PostgreSQL admin ----
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      SCRIPT_NAME: /pgadmin
+    volumes:
+      - ./data/pgadmin:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.pgadmin.rule=PathPrefix(`/pgadmin`)
+      - traefik.http.services.pgadmin.loadbalancer.server.port=80
+
+  # ---- DB admin GUI (dev utility): lightweight universal DB client ----
+  adminer:
+    image: adminer:latest
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "8081:8080"
+
   objectstore:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
