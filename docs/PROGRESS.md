@@ -30,10 +30,13 @@
     (A.1) [ADR #49]; **loan/investment auto-create backing account** via `pre_write` hook (A.6)
     [ADR #50]; **country-aware import mapping** (parser date/number locale + `country` on upload +
     Imports country selector) (#4) [ADR #51]. Frontend builds; backend files compile clean.
-  - **Round 2 Batch 4 (TODO):** more reports (projection line, budget-vs-actual, monthly trend);
-    installment/loan payment tracking (#15/#16); investment valuation history (#18); recurring
-    items UI (#19); transfers dialog (A.5); auth: admin user + Users admin + password fallback (#14);
-    in-app Help/Wiki (A.2).
+  - **Round 2 Batch 4 (IN PROGRESS):**
+    - DONE: **more reports** (#13) [ADR #52] — `monthly-trend` endpoint + service and a Reports
+      **Monthly Trend** line chart + **Budget vs. Actual** bar chart (per-budget picker on the
+      existing `/variance` endpoint). Frontend builds; backend compiles clean.
+    - TODO: installment/loan payment tracking (#15/#16); investment valuation history UI (#18);
+      recurring items UI (#19); transfers dialog (A.5); auth: admin user + Users admin + password
+      fallback (#14); in-app Help/Wiki (A.2).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a

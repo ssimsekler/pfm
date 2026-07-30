@@ -37,6 +37,94 @@ function VolumePie({ title, path }) {
   );
 }
 
+function MonthlyTrend() {
+  const [data, setData] = useState([]);
+  useEffect(() => {
+    api.get("/v1/reports/monthly-trend").then((r) =>
+      setData((r.series || []).map((s) => ({
+        month: s.month,
+        income: Number(s.income) || 0,
+        expense: Number(s.expense) || 0,
+        net: Number(s.net) || 0,
+      })))
+    ).catch(() => setData([]));
+  }, []);
+  return (
+    <Card sx={{ height: "100%" }}>
+      <CardHeader title="Monthly Trend" subheader="Income vs. expense per month (USD)" />
+      <CardContent sx={{ height: 300 }}>
+        {data.length === 0 ? <Typography color="text.secondary">No data yet.</Typography> : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" /><YAxis /><RTooltip /><Legend />
+              <Line type="monotone" dataKey="income" stroke="#2e7d32" />
+              <Line type="monotone" dataKey="expense" stroke="#c62828" />
+              <Line type="monotone" dataKey="net" stroke="#1e88e5" />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BudgetVsActual() {
+  const [budgets, setBudgets] = useState([]);
+  const [budgetId, setBudgetId] = useState("");
+  const [variance, setVariance] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.get("/v1/budgets", { limit: 100 }).then((r) => setBudgets(r.items || [])).catch(() => setBudgets([]));
+  }, []);
+
+  useEffect(() => {
+    if (!budgetId) { setVariance(null); return; }
+    setError(null);
+    api.get(`/v1/budgets/${budgetId}/variance`).then(setVariance).catch((e) => { setError(e.message); setVariance(null); });
+  }, [budgetId]);
+
+  const chartData = (variance?.lines || []).map((l, i) => ({
+    name: l.expense_category_id ? l.expense_category_id.slice(0, 8) : `Line ${i + 1}`,
+    expected: Number(l.expected) || 0,
+    actual: Number(l.actual) || 0,
+  }));
+
+  return (
+    <Card>
+      <CardHeader title="Budget vs. Actual" subheader="Expected vs. actual per budget line (USD)" />
+      <CardContent>
+        <TextField select size="small" label="Budget" value={budgetId}
+          onChange={(e) => setBudgetId(e.target.value)} sx={{ minWidth: 260, mb: 2 }}>
+          <MenuItem value=""><em>Select a budget…</em></MenuItem>
+          {budgets.map((b) => <MenuItem key={b.uuid} value={b.uuid}>{b.name}</MenuItem>)}
+        </TextField>
+        {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+        {variance ? (
+          <>
+            <Box sx={{ height: 300 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" /><YAxis /><RTooltip /><Legend />
+                  <Bar dataKey="expected" fill="#1e88e5" />
+                  <Bar dataKey="actual" fill="#ed6c02" />
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
+            <Stack direction="row" spacing={3} sx={{ mt: 1 }}>
+              <Typography variant="body2">Expected: {variance.total_expected}</Typography>
+              <Typography variant="body2">Actual: {variance.total_actual}</Typography>
+              <Typography variant="body2">Variance: {variance.total_variance} ({variance.reporting_currency})</Typography>
+            </Stack>
+          </>
+        ) : <Typography color="text.secondary">Pick a budget to see its variance.</Typography>}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Reports() {
   const [cash, setCash] = useState(null);
   const [worth, setWorth] = useState(null);
@@ -88,6 +176,11 @@ export default function Reports() {
           </Grid>
         </Grid>
       )}
+
+      <Grid container spacing={2} sx={{ mb: 1 }}>
+        <Grid item xs={12} md={6}><MonthlyTrend /></Grid>
+        <Grid item xs={12} md={6}><BudgetVsActual /></Grid>
+      </Grid>
 
       <Card sx={{ mt: 2 }}>
         <CardHeader title="SQL Console" subheader="Read-only · single SELECT · limited rows" />

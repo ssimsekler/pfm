@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.automation import InvestmentHolding
-from app.models.financial import Account, ExpenseCategory, Transaction
+from app.models.financial import Account, CashFlowItem, ExpenseCategory, Transaction
+from app.models.meta import CodeValue
 from app.services import fx
 
 settings = get_settings()
@@ -138,3 +139,56 @@ def net_worth(db: Session, as_of: date | None = None) -> dict:
         "investments": str(investments),
         "net_worth": str(assets + investments),
     }
+
+
+def monthly_trend(db: Session, date_from: date | None, date_to: date | None) -> dict:
+    """Income vs. expense per calendar month (YYYY-MM) in reporting ccy.
+
+    Direction is inferred from the linked cash-flow item's flow_type when present,
+    otherwise from the sign of the amount (>=0 income, <0 expense).
+    """
+    stmt = select(Transaction).where(Transaction.deleted_at.is_(None))
+    if date_from:
+        stmt = stmt.where(Transaction.txn_date >= date_from)
+    if date_to:
+        stmt = stmt.where(Transaction.txn_date <= date_to)
+    txns = db.execute(stmt).scalars()
+
+    # Cache flow_type code → "income"/"expense".
+    flow_code_cache: dict[str, str] = {}
+
+    def _flow_for(item_id) -> str | None:
+        if not item_id:
+            return None
+        item = db.get(CashFlowItem, item_id)
+        if item is None or item.flow_type_cv_id is None:
+            return None
+        key = str(item.flow_type_cv_id)
+        if key not in flow_code_cache:
+            cv = db.get(CodeValue, item.flow_type_cv_id)
+            flow_code_cache[key] = (cv.code if cv else "") or ""
+        return flow_code_cache[key] or None
+
+    income: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
+    expense: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
+    for t in txns:
+        month = t.txn_date.strftime("%Y-%m")
+        val = _to_reporting(db, Decimal(t.amount), t.currency, t.txn_date)
+        flow = _flow_for(t.cash_flow_item_id)
+        is_income = flow == "income" if flow else (val >= 0)
+        if is_income:
+            income[month] += abs(val)
+        else:
+            expense[month] += abs(val)
+
+    months = sorted(set(income) | set(expense))
+    series = [
+        {
+            "month": m,
+            "income": str(income.get(m, Decimal(0))),
+            "expense": str(expense.get(m, Decimal(0))),
+            "net": str(income.get(m, Decimal(0)) - expense.get(m, Decimal(0))),
+        }
+        for m in months
+    ]
+    return {"reporting_currency": _reporting_ccy(), "series": series}

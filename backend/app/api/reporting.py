@@ -213,6 +213,17 @@ def report_volume_by_beneficiary(
     return {"items": reporting.volume_by_field(db, "beneficiary_id", date_from, date_to)}
 
 
+@report_router.get("/monthly-trend")
+def report_monthly_trend(
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    db: Session = Depends(get_db),
+    _: Principal = Depends(get_current_principal),
+):
+    """Income vs. expense per month (reporting ccy) for a trend line chart."""
+    return reporting.monthly_trend(db, date_from, date_to)
+
+
 @report_router.get("/cash-position")
 def report_cash_position(
     as_of: date | None = Query(None),
