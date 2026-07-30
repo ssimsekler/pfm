@@ -1,10 +1,6 @@
 // Reusable Fiori list-report table with a filter bar, search, and pagination.
 import { useEffect, useState, useCallback } from "react";
 import {
-  Table,
-  TableColumn,
-  TableRow,
-  TableCell,
   Label,
   Input,
   Button,
@@ -111,27 +107,60 @@ export default function DataTable({
       )}
 
       <BusyIndicator active={loading} style={{ width: "100%" }}>
-        <Table
-          columns={columns.map((c) => (
-            <TableColumn key={c.key}>
-              <Label>{c.label}</Label>
-            </TableColumn>
-          ))}
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "0.875rem",
+          }}
         >
-          {rows.map((row) => (
-            <TableRow
-              key={row.uuid || row.code || JSON.stringify(row)}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              style={onRowClick ? { cursor: "pointer" } : undefined}
-            >
+          <thead>
+            <tr>
               {columns.map((c) => (
-                <TableCell key={c.key}>
-                  {c.render ? c.render(row) : <Text>{fmt(row[c.key])}</Text>}
-                </TableCell>
+                <th
+                  key={c.key}
+                  style={{
+                    textAlign: "left",
+                    padding: "0.5rem 0.75rem",
+                    borderBottom: "2px solid var(--sapList_BorderColor, #d9d9d9)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Label>{c.label}</Label>
+                </th>
               ))}
-            </TableRow>
-          ))}
-        </Table>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  style={{ padding: "1rem 0.75rem", textAlign: "center" }}
+                >
+                  <Text>No data</Text>
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr
+                  key={row.uuid || row.code || JSON.stringify(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  style={{
+                    cursor: onRowClick ? "pointer" : "default",
+                    borderBottom: "1px solid var(--sapList_BorderColor, #ededed)",
+                  }}
+                >
+                  {columns.map((c) => (
+                    <td key={c.key} style={{ padding: "0.5rem 0.75rem" }}>
+                      {c.render ? c.render(row) : <Text>{fmt(row[c.key])}</Text>}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </BusyIndicator>
 
       <FlexBox

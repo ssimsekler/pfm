@@ -5,7 +5,7 @@ transfers, expense categories/items, recurrence, installments, loans, goals, inv
 budgeting, document imports (PDF/CSV/XLSX with LLM-assisted mapping), multi-currency,
 analytics/reporting, notifications, data export, and configurable integrations.
 
-> **Status:** Phases 0–9 complete (backend + Fiori frontend, tests, docs). See
+> **Status:** Phases 0–10 complete (backend + Fiori frontend with full CRUD, tests, docs). See
 > [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Documentation
@@ -14,6 +14,13 @@ analytics/reporting, notifications, data export, and configurable integrations.
 - [`docs/ERD.md`](docs/ERD.md) — field-level data model.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — architecture decision log (ADRs).
 - [`docs/PROGRESS.md`](docs/PROGRESS.md) — build progress / resume file.
+
+> **Contributing / AI-assisted changes — docs continuity (mandatory):** before changing
+> anything, read `docs/PROGRESS.md` → `PLAN.md` → `DECISIONS.md` → `ERD.md`. With **every**
+> change, update the affected docs in the **same** increment (a change isn't done until code
+> **and** docs are updated). Enforced repo-wide via
+> [`.clinerules/docs-continuity.md`](.clinerules/docs-continuity.md) and
+> [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Tech stack
 
@@ -52,7 +59,6 @@ Services (via Traefik on http://localhost):
 - Frontend SPA: `/`
 - Backend API + docs: `/api`, `/api/docs`
 - Keycloak: `/auth`
-- **pgAdmin** (PostgreSQL admin GUI): `/pgadmin`
 - **Adminer** (lightweight DB GUI): `:8081` (server `db`)
 - MinIO console (object-store admin GUI): `:9001`
 - Ollama (local LLM): `:11434`

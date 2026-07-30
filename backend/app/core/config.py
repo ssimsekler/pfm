@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_prefix="")
 
     # Database
     database_url: str = "postgresql+psycopg://pfm:change-me-postgres@db:5432/pfm"
@@ -37,9 +37,6 @@ class Settings(BaseSettings):
     # SQL console guards (Decision #10)
     sql_console_row_limit: int = 1000
     sql_console_timeout_ms: int = 5000
-
-    class Config:
-        env_prefix = ""
 
 
 @lru_cache

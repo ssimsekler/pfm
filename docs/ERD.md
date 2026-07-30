@@ -659,3 +659,30 @@ The SQL console connects with a **read-only role** limited to these views, with
 - `code_value(code_list_id, is_active)` for value-help lookups.
 - `entity_tag(entity_type, entity_uuid)`, `attachment(entity_type, entity_uuid)`.
 - Partial indexes excluding soft-deleted rows (`WHERE deleted_at IS NULL`).
+
+---
+
+## Maintenance endpoints added in Phase 10 (ADR #33/#34)
+
+No new tables — these expose existing tables through the API:
+
+- **Transaction splits** (`transaction_split`): ADR #33.
+  - `GET /api/v1/transactions/{id}/splits` — list split lines.
+  - `PUT /api/v1/transactions/{id}/splits` — replace the full set of lines
+    (body `{ "splits": [{expense_category_id, beneficiary_id?, amount}] }`);
+    the amounts must sum exactly to the transaction amount; sets
+    `transaction.is_split` accordingly.
+  - `POST /api/v1/transactions/{id}/splits` — add one line (running total may not
+    exceed the transaction amount).
+  - `PATCH /api/v1/transactions/{id}/splits/{split_id}` — update a line.
+  - `DELETE /api/v1/transactions/{id}/splits/{split_id}` — remove a line.
+  - Splitting is rejected when the transaction is linked to a `cash_flow_item`
+    (Policy 1, Decision #16).
+
+- **Code-value admin** (`code_value` / `code_list`): ADR #34.
+  - `POST /api/v1/code-lists/{list_key}/values` — create a value.
+  - `PATCH /api/v1/code-lists/{list_key}/values/{value_id}` — edit a value.
+  - `DELETE /api/v1/code-lists/{list_key}/values/{value_id}` — deactivate
+    (`is_active=false`; soft, to preserve `*_cv_id` FK references).
+  - System-locked lists (`code_list.is_system` and not `allow_user_values`)
+    reject writes with HTTP 403.

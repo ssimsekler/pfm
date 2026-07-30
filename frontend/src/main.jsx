@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import "@ui5/webcomponents-react/dist/Assets.js";
 import { ThemeProvider } from "@ui5/webcomponents-react";
 
+import "./index.css";
 import App from "./App.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(

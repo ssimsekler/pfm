@@ -1,15 +1,20 @@
 services:
   proxy:
     image: traefik:v3.1
+    # Uses the file provider (see ./traefik/dynamic.yml) instead of the Docker
+    # provider: Docker Desktop's mounted socket can return HTTP 400 to the
+    # Docker API, which breaks label-based service discovery.
     command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
       - --entrypoints.web.address=:80
+      - --api.dashboard=true
+      - --api.insecure=true
     ports:
       - "80:80"
       - "8080:8080" # Traefik dashboard (dev only)
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     depends_on:
       - frontend
       - backend
@@ -30,25 +35,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # ---- DB admin GUI (dev utility): full-featured PostgreSQL admin ----
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      SCRIPT_NAME: /pgadmin
-    volumes:
-      - ./data/pgadmin:/var/lib/pgadmin
-    depends_on:
-      db:
-        condition: service_healthy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.pgadmin.rule=PathPrefix(`/pgadmin`)
-      - traefik.http.services.pgadmin.loadbalancer.server.port=80
 
   # ---- DB admin GUI (dev utility): lightweight universal DB client ----
   adminer:

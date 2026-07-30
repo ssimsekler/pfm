@@ -14,7 +14,7 @@ import { api } from "../api";
 function KpiTile({ icon, title, value, subtitle, onClick }) {
   return (
     <Card
-      style={{ width: "260px", cursor: onClick ? "pointer" : "default" }}
+      style={{ flex: "1 1 220px", minWidth: "220px", maxWidth: "320px", cursor: onClick ? "pointer" : "default" }}
       onClick={onClick}
       header={<CardHeader titleText={title} avatar={<Icon name={icon} />} />}
     >

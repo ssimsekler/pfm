@@ -1,0 +1,36 @@
+# Traefik dynamic configuration (file provider).
+#
+# Used instead of the Docker provider because Docker Desktop's mounted socket
+# can return HTTP 400 to the Docker API, breaking label-based discovery.
+# Routers are matched by path prefix and forwarded to services by container name.
+http:
+  routers:
+    backend:
+      rule: "PathPrefix(`/api`)"
+      service: backend
+      entryPoints:
+        - web
+    keycloak:
+      rule: "PathPrefix(`/auth`)"
+      service: keycloak
+      entryPoints:
+        - web
+    frontend:
+      rule: "PathPrefix(`/`)"
+      service: frontend
+      entryPoints:
+        - web
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:80"

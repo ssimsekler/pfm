@@ -47,6 +47,7 @@ from app.models.automation import (
     LlmProvider,
     ValuationHistory,
 )
+from app.models.budgeting import Budget, BudgetLine
 from app.models.imports import DocumentImport, DocumentImportRow
 from app.models.notifications import Notification
 
@@ -99,6 +100,9 @@ __all__ = [
     "CategorizationRule",
     "InvestmentHolding",
     "ValuationHistory",
+    # budgeting
+    "Budget",
+    "BudgetLine",
     # imports
     "DocumentImport",
     "DocumentImportRow",

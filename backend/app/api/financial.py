@@ -10,10 +10,11 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.crud_router import build_crud_router
-from app.api.schemas import EntityOut, ORMModel, PageOut
+from app.api.schemas import DeleteResult, EntityOut, ORMModel, PageOut
 from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
 from app.models import financial as fin
@@ -381,6 +382,174 @@ def delete_transaction(
         raise HTTPException(status_code=404, detail="transaction not found")
     _txn_repo.soft_delete(db, obj)
     return {"deleted": True, "uuid": str(item_uuid)}
+
+
+# ---------------------------------------------------------------------------
+# Transaction splits (ADR #33): a transaction can be split across multiple
+# expense categories/beneficiaries. Split amounts must sum exactly to the
+# transaction amount. Splitting is disallowed when the transaction is linked to
+# a cash_flow_item (Policy 1, ADR #16).
+# ---------------------------------------------------------------------------
+class SplitIn(ORMModel):
+    expense_category_id: uuid_lib.UUID
+    beneficiary_id: uuid_lib.UUID | None = None
+    amount: Decimal
+
+
+class SplitOut(ORMModel):
+    uuid: uuid_lib.UUID
+    transaction_id: uuid_lib.UUID
+    expense_category_id: uuid_lib.UUID
+    beneficiary_id: uuid_lib.UUID | None = None
+    amount: Decimal
+
+
+class SplitReplaceIn(ORMModel):
+    """Replace the full set of split lines for a transaction in one call."""
+    splits: list[SplitIn]
+
+
+def _require_txn(db: Session, txn_id: uuid_lib.UUID) -> fin.Transaction:
+    txn = _txn_repo.get(db, txn_id)
+    if txn is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    if txn.cash_flow_item_id is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot split a transaction linked to a cash_flow_item (Policy 1).",
+        )
+    return txn
+
+
+def _validate_sum(txn: fin.Transaction, splits: list[SplitIn]) -> None:
+    total = sum((Decimal(s.amount) for s in splits), Decimal(0))
+    if total != Decimal(txn.amount):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Split amounts must sum to the transaction amount "
+                f"({txn.amount}); got {total}."
+            ),
+        )
+
+
+@transaction_router.get("/{txn_id}/splits", response_model=list[SplitOut])
+def list_splits(
+    txn_id: uuid_lib.UUID,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(get_current_principal),
+):
+    if _txn_repo.get(db, txn_id) is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    rows = db.execute(
+        select(fin.TransactionSplit).where(fin.TransactionSplit.transaction_id == txn_id)
+    ).scalars()
+    return list(rows)
+
+
+@transaction_router.put("/{txn_id}/splits", response_model=list[SplitOut])
+def replace_splits(
+    txn_id: uuid_lib.UUID,
+    payload: SplitReplaceIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_write),
+):
+    """Replace all split lines for a transaction (empty list clears splits)."""
+    txn = _require_txn(db, txn_id)
+    if payload.splits:
+        _validate_sum(txn, payload.splits)
+
+    # Clear existing lines, then insert the new set.
+    existing = db.execute(
+        select(fin.TransactionSplit).where(fin.TransactionSplit.transaction_id == txn_id)
+    ).scalars().all()
+    for row in existing:
+        db.delete(row)
+
+    created: list[fin.TransactionSplit] = []
+    for s in payload.splits:
+        row = fin.TransactionSplit(transaction_id=txn_id, **s.model_dump())
+        db.add(row)
+        created.append(row)
+
+    txn.is_split = bool(payload.splits)
+    db.commit()
+    for row in created:
+        db.refresh(row)
+    return created
+
+
+@transaction_router.post("/{txn_id}/splits", response_model=SplitOut, status_code=201)
+def add_split(
+    txn_id: uuid_lib.UUID,
+    payload: SplitIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_write),
+):
+    """Add a single split line. The running total must not exceed the amount;
+    once it equals the transaction amount, the transaction is marked split."""
+    txn = _require_txn(db, txn_id)
+    existing = db.execute(
+        select(fin.TransactionSplit).where(fin.TransactionSplit.transaction_id == txn_id)
+    ).scalars().all()
+    running = sum((Decimal(r.amount) for r in existing), Decimal(0)) + Decimal(payload.amount)
+    if running > Decimal(txn.amount):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Split total {running} would exceed transaction amount {txn.amount}.",
+        )
+    row = fin.TransactionSplit(transaction_id=txn_id, **payload.model_dump())
+    db.add(row)
+    txn.is_split = running == Decimal(txn.amount)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@transaction_router.patch("/{txn_id}/splits/{split_id}", response_model=SplitOut)
+def update_split(
+    txn_id: uuid_lib.UUID,
+    split_id: uuid_lib.UUID,
+    payload: SplitIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_write),
+):
+    _require_txn(db, txn_id)
+    row = db.get(fin.TransactionSplit, split_id)
+    if row is None or row.transaction_id != txn_id:
+        raise HTTPException(status_code=404, detail="split not found")
+    row.expense_category_id = payload.expense_category_id
+    row.beneficiary_id = payload.beneficiary_id
+    row.amount = payload.amount
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@transaction_router.delete("/{txn_id}/splits/{split_id}", response_model=DeleteResult)
+def delete_split(
+    txn_id: uuid_lib.UUID,
+    split_id: uuid_lib.UUID,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_write),
+):
+    _require_txn(db, txn_id)
+    row = db.get(fin.TransactionSplit, split_id)
+    if row is None or row.transaction_id != txn_id:
+        raise HTTPException(status_code=404, detail="split not found")
+    db.delete(row)
+    # Recompute is_split from remaining lines.
+    remaining = db.execute(
+        select(fin.TransactionSplit).where(
+            fin.TransactionSplit.transaction_id == txn_id,
+            fin.TransactionSplit.uuid != split_id,
+        )
+    ).scalars().all()
+    txn = _txn_repo.get(db, txn_id)
+    if txn is not None:
+        txn.is_split = len(remaining) > 0
+    db.commit()
+    return DeleteResult(uuid=split_id)
 
 
 # All financial routers, collected for main.py registration.

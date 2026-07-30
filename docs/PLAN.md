@@ -101,6 +101,12 @@ dialogs; notification center.
 - **Phase 7** Notifications & scheduler.
 - **Phase 8** Frontend polish & UX.
 - **Phase 9** Quality & delivery: tests, OpenAPI export, seed data, README, release.
+- **Phase 10** CRUD UX & maintenance APIs: metadata-driven frontend CRUD layer
+  (`entities.js` + `EntityManager`/`EntityForm`/`ComboField`/`ConfirmDialog`) giving every
+  master/config/transactional entity create/view/edit/delete with autocomplete value help and
+  universal confirm-on-write (ADR #32); transaction splits API + multi-line split editor
+  (ADR #33); code-value/code-list admin API + UI (ADR #34); Institutions wired into navigation;
+  layout reset (`index.css`) and responsive launchpad cards.
 
 Each phase ends with a working, committed increment. Commit continuously; attempt push to
 `https://github.com/ssimsekler/pfm.git`; if push fails, keep committing locally.

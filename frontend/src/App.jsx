@@ -27,6 +27,7 @@ const ROUTES = {
   home: (nav) => <Launchpad navigate={nav} />,
   transactions: () => <Transactions />,
   accounts: () => <EntityList entity="accounts" />,
+  institutions: () => <EntityList entity="institutions" />,
   partners: () => <EntityList entity="partners" />,
   beneficiaries: () => <EntityList entity="beneficiaries" />,
   "expense-categories": () => <EntityList entity="expense-categories" />,
@@ -105,6 +106,7 @@ export default function App() {
             <SideNavigationSubItem text="Goals" data-route="goals" selected={route === "goals"} />
           </SideNavigationItem>
           <SideNavigationItem text="Master Data" icon="dimension" expanded>
+            <SideNavigationSubItem text="Institutions" data-route="institutions" selected={route === "institutions"} />
             <SideNavigationSubItem text="Partners" data-route="partners" selected={route === "partners"} />
             <SideNavigationSubItem text="Beneficiaries" data-route="beneficiaries" selected={route === "beneficiaries"} />
             <SideNavigationSubItem text="Categories" data-route="expense-categories" selected={route === "expense-categories"} />

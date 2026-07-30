@@ -1,0 +1,412 @@
+// Central, metadata-driven entity registry (ADR #32).
+//
+// Each entity defines:
+//   - title:    display name
+//   - path:     list/CRUD base path (e.g. "/v1/partners")
+//   - idField:  primary key field returned by the API (default "uuid")
+//   - readOnly: if true, no create/edit/delete (list only)
+//   - columns:  [{ key, label, render? }] for the list table
+//   - fields:   [{ name, label, type, required?, ... }] for the create/edit form
+//   - hasSplits: transactions only — enables the split editor
+//
+// Field types: text | textarea | number | date | boolean | select | codeValue | ref
+//   - select:    static options via `options: [{value,label}]`
+//   - codeValue: dropdown from a code list via `listKey` (value = code_value.uuid)
+//   - ref:       dropdown from another entity via `refEntity`; optional
+//                `refLabel` (default "name") and `refValue` (default "uuid")
+//
+// Consumed by ComboField / EntityForm / EntityManager / SplitEditor.
+
+export const CURRENCY_FIELD = {
+  name: "currency",
+  label: "Currency",
+  type: "ref",
+  refEntity: "currencies",
+  refValue: "code",
+  refLabel: "code",
+};
+
+export const ENTITIES = {
+  // ---------------------------------------------------------------- Reference
+  currencies: {
+    title: "Currencies",
+    path: "/v1/currencies",
+    idField: "code",
+    readOnly: true, // backend exposes currencies read-only (ADR #33 note)
+    columns: [
+      { key: "code", label: "Code" },
+      { key: "name", label: "Name" },
+      { key: "symbol", label: "Symbol" },
+      { key: "decimals", label: "Decimals" },
+    ],
+    fields: [],
+  },
+
+  countries: {
+    title: "Countries",
+    path: "/v1/countries",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "iso2", label: "ISO2" },
+      { key: "iso3", label: "ISO3" },
+      { key: "default_currency", label: "Default Ccy" },
+      { key: "mnemonic_id", label: "ID" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "iso2", label: "ISO2", type: "text", required: true },
+      { name: "iso3", label: "ISO3", type: "text", required: true },
+      { name: "default_currency", label: "Default Currency", type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  institutions: {
+    title: "Institutions",
+    path: "/v1/institutions",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "swift_bic", label: "SWIFT/BIC" },
+      { key: "website", label: "Website" },
+      { key: "mnemonic_id", label: "ID" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "country_id", label: "Country", type: "ref", refEntity: "countries", required: true },
+      { name: "institution_type_cv_id", label: "Type", type: "codeValue", listKey: "institution_type" },
+      { name: "swift_bic", label: "SWIFT/BIC", type: "text" },
+      { name: "website", label: "Website", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  // ------------------------------------------------------------------- Master
+  accounts: {
+    title: "Accounts",
+    path: "/v1/accounts",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "currency", label: "Currency" },
+      { key: "opening_balance", label: "Opening Balance" },
+      { key: "is_active", label: "Active" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "account_type_cv_id", label: "Type", type: "codeValue", listKey: "account_type" },
+      { ...CURRENCY_FIELD, required: true },
+      { name: "opening_balance", label: "Opening Balance", type: "number" },
+      { name: "opening_balance_date", label: "Opening Balance Date", type: "date" },
+      { name: "institution_id", label: "Institution", type: "ref", refEntity: "institutions" },
+      { name: "is_active", label: "Active", type: "boolean" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  partners: {
+    title: "Partners",
+    path: "/v1/partners",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "description", label: "Description" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "partner_type_cv_id", label: "Type", type: "codeValue", listKey: "partner_type" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  beneficiaries: {
+    title: "Beneficiaries",
+    path: "/v1/beneficiaries",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "level", label: "Level" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "parent_id", label: "Parent", type: "ref", refEntity: "beneficiaries" },
+      { name: "level", label: "Level", type: "number" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "expense-categories": {
+    title: "Expense Categories",
+    path: "/v1/expense-categories",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "level", label: "Level" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "parent_id", label: "Parent", type: "ref", refEntity: "expense-categories" },
+      { name: "level", label: "Level", type: "number" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "cash-flow-items": {
+    title: "Cash Flow Items",
+    path: "/v1/cash-flow-items",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "expected_amount", label: "Expected" },
+      { key: "currency", label: "Currency" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "flow_type_cv_id", label: "Flow Type", type: "codeValue", listKey: "flow_type" },
+      { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories", required: true },
+      { name: "expected_amount", label: "Expected Amount", type: "number" },
+      { ...CURRENCY_FIELD },
+      { name: "status_cv_id", label: "Status", type: "codeValue", listKey: "cash_flow_status" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  investments: {
+    title: "Investments",
+    path: "/v1/investments",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "symbol", label: "Symbol" },
+      { key: "quantity", label: "Quantity" },
+      { key: "current_value_cache", label: "Current Value" },
+      { key: "currency", label: "Currency" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "symbol", label: "Symbol", type: "text", required: true },
+      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts" },
+      { name: "asset_type_cv_id", label: "Asset Type", type: "codeValue", listKey: "asset_type" },
+      { name: "quantity", label: "Quantity", type: "number" },
+      { name: "entry_value", label: "Entry Value", type: "number" },
+      { name: "entry_date", label: "Entry Date", type: "date" },
+      { ...CURRENCY_FIELD },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  loans: {
+    title: "Loans",
+    path: "/v1/loans",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "principal", label: "Principal" },
+      { key: "interest_rate", label: "Rate %" },
+      { key: "term_months", label: "Term (mo)" },
+      { key: "currency", label: "Currency" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts" },
+      { name: "principal", label: "Principal", type: "number", required: true },
+      { name: "interest_rate", label: "Interest Rate %", type: "number", required: true },
+      { name: "term_months", label: "Term (months)", type: "number", required: true },
+      { name: "start_date", label: "Start Date", type: "date", required: true },
+      { ...CURRENCY_FIELD },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "installment-plans": {
+    title: "Installment Plans",
+    path: "/v1/installment-plans",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "total_amount", label: "Total" },
+      { key: "installment_count", label: "Count" },
+      { key: "currency", label: "Currency" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts" },
+      { name: "total_amount", label: "Total Amount", type: "number", required: true },
+      { name: "installment_count", label: "Installment Count", type: "number", required: true },
+      { name: "start_date", label: "Start Date", type: "date", required: true },
+      { name: "frequency_cv_id", label: "Frequency", type: "codeValue", listKey: "frequency" },
+      { name: "interest_rate", label: "Interest Rate %", type: "number" },
+      { ...CURRENCY_FIELD },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  goals: {
+    title: "Goals",
+    path: "/v1/goals",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "target_amount", label: "Target" },
+      { key: "target_date", label: "Target Date" },
+      { key: "currency", label: "Currency" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "target_amount", label: "Target Amount", type: "number", required: true },
+      { ...CURRENCY_FIELD },
+      { name: "target_date", label: "Target Date", type: "date" },
+      { name: "linked_account_id", label: "Linked Account", type: "ref", refEntity: "accounts" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  budgets: {
+    title: "Budgets",
+    path: "/v1/budgets",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "period_start", label: "From" },
+      { key: "period_end", label: "To" },
+      { key: "base_currency", label: "Currency" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "period_start", label: "Period Start", type: "date", required: true },
+      { name: "period_end", label: "Period End", type: "date", required: true },
+      { name: "base_currency", label: "Base Currency", type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  // ------------------------------------------------------------ Transactional
+  transactions: {
+    title: "Transactions",
+    path: "/v1/transactions",
+    hasSplits: true,
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "txn_date", label: "Date" },
+      { key: "amount", label: "Amount" },
+      { key: "currency", label: "Currency" },
+      { key: "is_split", label: "Split" },
+      { key: "mnemonic_id", label: "ID" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts", required: true },
+      { name: "txn_date", label: "Transaction Date", type: "date", required: true },
+      { name: "booking_date", label: "Booking Date", type: "date" },
+      { name: "amount", label: "Amount", type: "number", required: true },
+      { ...CURRENCY_FIELD, required: true },
+      { name: "direction_cv_id", label: "Direction", type: "codeValue", listKey: "direction" },
+      { name: "partner_id", label: "Partner", type: "ref", refEntity: "partners" },
+      { name: "beneficiary_id", label: "Beneficiary", type: "ref", refEntity: "beneficiaries" },
+      { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories" },
+      { name: "cash_flow_item_id", label: "Cash Flow Item", type: "ref", refEntity: "cash-flow-items", help: "If set, category is inherited and splitting is disabled (Policy 1)." },
+      { name: "status_cv_id", label: "Status", type: "codeValue", listKey: "transaction_status" },
+      { name: "note", label: "Note", type: "textarea" },
+    ],
+  },
+
+  // -------------------------------------------------------------------- Config
+  "llm-providers": {
+    title: "LLM Providers",
+    path: "/v1/llm-providers",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "model", label: "Model" },
+      { key: "base_url", label: "Base URL" },
+      { key: "enabled", label: "Enabled" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "kind_cv_id", label: "Kind", type: "codeValue", listKey: "llm_provider_kind" },
+      { name: "base_url", label: "Base URL", type: "text" },
+      { name: "model", label: "Model", type: "text" },
+      { name: "credentials_ref", label: "Credentials Ref", type: "text" },
+      { name: "enabled", label: "Enabled", type: "boolean" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "integration-endpoints": {
+    title: "Integration Endpoints",
+    path: "/v1/integration-endpoints",
+    columns: [
+      { key: "scenario_key", label: "Scenario" },
+      { key: "provider_name", label: "Provider" },
+      { key: "base_url", label: "Base URL" },
+      { key: "enabled", label: "Enabled" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "scenario_key", label: "Scenario Key", type: "text", required: true },
+      { name: "provider_name", label: "Provider Name", type: "text" },
+      { name: "base_url", label: "Base URL", type: "text" },
+      { name: "auth_type_cv_id", label: "Auth Type", type: "codeValue", listKey: "auth_type" },
+      { name: "credentials_ref", label: "Credentials Ref", type: "text" },
+      { name: "timeout_ms", label: "Timeout (ms)", type: "number" },
+      { name: "priority", label: "Priority", type: "number" },
+      { name: "enabled", label: "Enabled", type: "boolean" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "categorization-rules": {
+    title: "Categorization Rules",
+    path: "/v1/categorization-rules",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "priority", label: "Priority" },
+      { key: "enabled", label: "Enabled" },
+      { key: "mnemonic_id", label: "ID" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "priority", label: "Priority", type: "number" },
+      { name: "conditions", label: "Conditions (JSON)", type: "json" },
+      { name: "actions", label: "Actions (JSON)", type: "json" },
+      { name: "enabled", label: "Enabled", type: "boolean" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "currency-rates": {
+    title: "Currency Rates",
+    path: "/v1/currency-rates",
+    columns: [
+      { key: "base_ccy", label: "Base" },
+      { key: "quote_ccy", label: "Quote" },
+      { key: "rate", label: "Rate" },
+      { key: "begin_date", label: "From" },
+      { key: "end_date", label: "To" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "base_ccy", label: "Base Currency", type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code", required: true },
+      { name: "quote_ccy", label: "Quote Currency", type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code", required: true },
+      { name: "rate", label: "Rate", type: "number", required: true },
+      { name: "begin_date", label: "Begin Date", type: "date", required: true },
+      { name: "end_date", label: "End Date", type: "date", required: true },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "holiday-calendars": {
+    title: "Holiday Calendars",
+    path: "/v1/holiday-calendars",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "description", label: "Description" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+};
+
+export function getEntity(key) {
+  return ENTITIES[key] || null;
+}
