@@ -37,7 +37,11 @@ def build_crud_router(
     update_schema: Type[BaseModel],
     search_columns: list[str] | None = None,
     filter_fields: list[str] | None = None,
+    pre_write=None,
 ) -> APIRouter:
+    """`pre_write(db, data, obj_or_None)` may mutate the payload dict before a
+    create (obj is None) or update (obj is the existing row). Used e.g. to derive
+    hierarchical `level` from a parent (Decision on structural level fields)."""
     repo = Repository(model, entity_type=entity_type, event_domain=event_domain)
     router = APIRouter(prefix=prefix, tags=[tag])
     filter_fields = filter_fields or []
@@ -83,7 +87,10 @@ def build_crud_router(
         db: Session = Depends(get_db),
         principal: Principal = Depends(require_write),
     ):
-        obj = repo.create(db, payload.model_dump(exclude_unset=True))
+        data = payload.model_dump(exclude_unset=True)
+        if pre_write is not None:
+            pre_write(db, data, None)
+        obj = repo.create(db, data)
         return out_schema.model_validate(obj)
 
     @router.get("/{item_uuid}", response_model=out_schema)
@@ -107,7 +114,10 @@ def build_crud_router(
         obj = repo.get(db, item_uuid)
         if obj is None:
             raise HTTPException(status_code=404, detail=f"{tag} not found")
-        obj = repo.update(db, obj, payload.model_dump(exclude_unset=True))
+        data = payload.model_dump(exclude_unset=True)
+        if pre_write is not None:
+            pre_write(db, data, obj)
+        obj = repo.update(db, obj, data)
         return out_schema.model_validate(obj)
 
     @router.delete("/{item_uuid}", response_model=DeleteResult)

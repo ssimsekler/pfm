@@ -6,6 +6,7 @@ IDs, writes audit entries, and emits CloudEvents on state changes.
 
 import uuid as uuid_lib
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import String, asc, cast, desc, func, or_, select
@@ -180,14 +181,30 @@ class Repository(Generic[T]):
         db.commit()
 
 
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, uuid_lib.UUID):
+        return str(value)
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode("utf-8", "replace")
+    if hasattr(value, "isoformat"):  # date / datetime / time
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    return str(value)
+
+
 def _snapshot(obj: Any) -> dict:
-    """JSON-serialisable snapshot of a model's column values."""
-    result: dict[str, Any] = {}
-    for column in obj.__table__.columns:
-        value = getattr(obj, column.name)
-        if isinstance(value, uuid_lib.UUID):
-            value = str(value)
-        elif hasattr(value, "isoformat"):
-            value = value.isoformat()
-        result[column.name] = value
-    return result
+    """JSON-serialisable snapshot of a model's column values.
+
+    Coerces non-JSON-native types (UUID, date/datetime, Decimal, bytes) so the
+    audit `before`/`after` JSONB columns can be written. Missing this coercion
+    for Decimal caused HTTP 500s when creating entities with Numeric columns
+    (Account.opening_balance, CashFlowItem.expected_amount, CurrencyRate.rate).
+    """
+    return {c.name: _json_safe(getattr(obj, c.name)) for c in obj.__table__.columns}

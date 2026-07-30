@@ -115,11 +115,44 @@ class BeneficiaryUpdate(ORMModel):
     level: int | None = None
 
 
+def _derive_level(model, max_level: int):
+    """pre_write hook: set level = parent.level + 1 (else 1); forbid self/loops
+    and enforce a maximum hierarchy depth (beneficiary 2, expense_category 3)."""
+    def hook(db: Session, data: dict, obj) -> None:
+        # Determine the effective parent for this write.
+        parent_id = data.get("parent_id", getattr(obj, "parent_id", None) if obj else None)
+        if obj is not None and parent_id is not None and parent_id == obj.uuid:
+            raise HTTPException(status_code=422, detail="An item cannot be its own parent.")
+        if parent_id is None:
+            data["level"] = 1
+            return
+        parent = db.get(model, parent_id)
+        if parent is None:
+            raise HTTPException(status_code=422, detail="parent not found")
+        # Prevent cycles (parent chain must not include this obj).
+        if obj is not None:
+            walk = parent
+            while walk is not None:
+                if walk.uuid == obj.uuid:
+                    raise HTTPException(status_code=422, detail="Parent cycle detected.")
+                walk = db.get(model, walk.parent_id) if walk.parent_id else None
+        level = (parent.level or 1) + 1
+        if level > max_level:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Maximum hierarchy depth is {max_level}.",
+            )
+        data["level"] = level
+
+    return hook
+
+
 beneficiary_router = build_crud_router(
     prefix="/api/v1/beneficiaries", tag="beneficiaries", model=fin.Beneficiary,
     entity_type="beneficiary", event_domain="beneficiary",
     out_schema=BeneficiaryOut, create_schema=BeneficiaryCreate, update_schema=BeneficiaryUpdate,
     filter_fields=["parent_id", "level"],
+    pre_write=_derive_level(fin.Beneficiary, max_level=2),
 )
 
 
@@ -151,6 +184,7 @@ expense_category_router = build_crud_router(
     out_schema=ExpenseCategoryOut, create_schema=ExpenseCategoryCreate,
     update_schema=ExpenseCategoryUpdate,
     filter_fields=["parent_id", "level"],
+    pre_write=_derive_level(fin.ExpenseCategory, max_level=3),
 )
 
 

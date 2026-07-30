@@ -56,23 +56,39 @@ def _apply_additive_columns() -> None:
             )
 
 
+# Advisory-lock key so the API and worker containers don't run migrations/seeding
+# concurrently on startup (which caused duplicate-key races and a backend exit 3).
+_INIT_LOCK_KEY = 776_2011
+
+
 def init_db() -> None:
-    # Ensure the app schema exists first (migrations/create_all target it).
-    with engine.begin() as conn:
-        conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.db_schema}"'))
-
-    if not _run_migrations():
-        Base.metadata.create_all(bind=engine)
-
-    # Converge additive schema changes on existing databases.
+    # Serialize startup init across containers (API + worker) with a Postgres
+    # advisory lock held on a single dedicated connection for the whole routine.
+    lock_conn = engine.connect()
     try:
-        _apply_additive_columns()
-    except Exception as exc:  # noqa: BLE001
-        print(f"[bootstrap] additive column sync skipped: {exc}", flush=True)
+        lock_conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.db_schema}"'))
+        lock_conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": _INIT_LOCK_KEY})
+        lock_conn.commit()
 
-    # Seed system reference data (idempotent).
-    db = SessionLocal()
-    try:
-        seed_all(db)
+        if not _run_migrations():
+            Base.metadata.create_all(bind=engine)
+
+        # Converge additive schema changes on existing databases.
+        try:
+            _apply_additive_columns()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[bootstrap] additive column sync skipped: {exc}", flush=True)
+
+        # Seed system reference data (idempotent).
+        db = SessionLocal()
+        try:
+            seed_all(db)
+        finally:
+            db.close()
     finally:
-        db.close()
+        try:
+            lock_conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _INIT_LOCK_KEY})
+            lock_conn.commit()
+        except Exception:  # noqa: BLE001
+            pass
+        lock_conn.close()

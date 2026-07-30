@@ -8,7 +8,7 @@ from app.models.automation import IntegrationEndpoint, LlmProvider
 from app.models.meta import AppConfig, CodeList, CodeValue
 from app.models.reference import Country, Currency
 from app.models.security import Role
-from app.services import seed_data
+from app.services import iso_data, seed_data
 from app.services.id_sequence import next_mnemonic
 
 _settings = get_settings()
@@ -90,7 +90,7 @@ def _seed_integration_endpoints(db: Session) -> None:
 
 def _seed_currencies(db: Session) -> None:
     existing = {c.code for c in db.execute(select(Currency)).scalars()}
-    for code, symbol, decimals, name in seed_data.CURRENCIES:
+    for code, symbol, decimals, name in iso_data.ISO_CURRENCIES:
         if code not in existing:
             db.add(Currency(code=code, symbol=symbol, decimals=decimals, name=name))
     db.flush()
@@ -135,8 +135,12 @@ def _seed_code_lists(db: Session) -> None:
 
 def _seed_countries(db: Session) -> None:
     existing = {c.iso2 for c in db.execute(select(Country)).scalars()}
-    for iso2, iso3, name, ccy in seed_data.COUNTRIES:
+    # Only reference currencies that were actually seeded, to avoid FK errors.
+    known_ccy = {c.code for c in db.execute(select(Currency)).scalars()}
+    for iso2, iso3, name, ccy in iso_data.ISO_COUNTRIES:
         if iso2 not in existing:
+            if ccy is not None and ccy not in known_ccy:
+                ccy = None
             db.add(
                 Country(
                     mnemonic_id=next_mnemonic(db, "country"),
