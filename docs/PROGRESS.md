@@ -4,12 +4,31 @@
 > This file records the current phase, what is done, and the exact next step.
 >
 > **Maintenance rule (mandatory):** update these docs (PROGRESS/DECISIONS/ERD/PLAN) with
-> every change, in the same increment as the code; then **git commit and push** after every
-> pass of changes. See `.clinerules/docs-continuity.md`.
+> every change, in the same increment as the code. See `.clinerules/docs-continuity.md`.
 
 ## Current status
 
-- **Active phase:** Phase 10 — CRUD UX & maintenance APIs (COMPLETE). **Phases 0–10 done.**
+- **Active phase:** Phase 11 — UX bug-fix & feature pass (IN PROGRESS). Fixing reported
+  issues in batches; commit/push after each batch (per `.clinerules/docs-continuity.md`).
+  - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
+    — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
+    draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a
+    reliable native `<select>` so comboboxes populate/select everywhere (#11); default the
+    transaction name from the selected cash-flow item (A.4); real **routing** via `HashRouter`
+    so every screen has its own URL and Back/refresh work, plus a working avatar/profile
+    popover (#3, part of #14).
+  - **Batch B (TODO):** Export/Import + Overview card spacing (#9/#12); scrollable code-list
+    card (#7); structured filter bar on all lists (#20).
+  - **Batch C (TODO):** partner country + country-aware import mapping (#4); derived level
+    (#5); expense-category CSV seed (#8); loan category (#17); holiday calendar weekend/
+    week-start + day editor (A.1); loan/investment auto-create backing account (A.6);
+    app_config CRUD + Settings screen incl. LLM master switch (A.7); user profile (name/email/
+    date-time-number formats); entity-prefix (`id_sequence`) maintenance UI.
+  - **Batch D (TODO):** reports + charts (#13); installment/loan payment tracking + txn link
+    (#15/#16); investment valuation history (#18); recurring cash-flow items + profiles (#19);
+    transfers dialog (A.5); auth: default admin user, Users admin, password fallback (#14);
+    in-app Help/Wiki incl. categorization rules (A.2).
+- **Previous:** Phase 10 — CRUD UX & maintenance APIs (COMPLETE). **Phases 0–10 done.**
 - **Last completed (Phase 10):**
   - **Backend:** transaction **splits API** on the transaction router
     (`GET/PUT/POST/PATCH/DELETE /api/v1/transactions/{id}/splits`) with exact-sum validation,
@@ -92,3 +111,5 @@
   Docker provider, because Docker Desktop's mounted socket returned HTTP 400 to the Docker API.
 - Frontend pins **`@ui5/webcomponents*` v1.x** (source uses the v1 component API); Dockerfile
   runs `npm install --legacy-peer-deps`.
+- Frontend routing uses **HashRouter** (`#/screen`) so it works behind nginx/Traefik without
+  server-side rewrites; each screen has its own URL (Back/refresh work).

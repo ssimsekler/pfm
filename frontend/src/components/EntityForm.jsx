@@ -1,8 +1,11 @@
-// Metadata-driven create/edit form (ADR #32). Confirms before every save.
+// Metadata-driven create/edit form (ADR #32, refined confirmation model).
 //
-// Renders inputs from an entity's `fields`. On save: POST (create) or PATCH
-// (edit, changed fields only). For transactions (hasSplits), embeds SplitEditor
-// and persists split lines via PUT /v1/transactions/{id}/splits.
+// Confirmation policy:
+//   - Save (create/update): NO confirmation (saves directly).
+//   - Cancel: confirm ONLY if the form has unsaved changes (dirty).
+//   - Delete is handled by EntityManager (always confirmed).
+// The confirm dialog is a SIBLING of the form dialog (never nested) to avoid
+// stacked modal overlays that block clicks (#1).
 import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
@@ -14,19 +17,50 @@ import {
   Switch,
   DatePicker,
   MessageStrip,
-  Title,
 } from "@ui5/webcomponents-react";
 import { api } from "../api";
 import ComboField from "./ComboField";
 import ConfirmDialog from "./ConfirmDialog";
 import SplitEditor from "./SplitEditor";
 
+// Proper singular titles (avoids "Categorie" from a naive /s$/ strip — #6).
+const SINGULAR = {
+  "Currencies": "Currency",
+  "Countries": "Country",
+  "Institutions": "Institution",
+  "Accounts": "Account",
+  "Partners": "Partner",
+  "Beneficiaries": "Beneficiary",
+  "Expense Categories": "Expense Category",
+  "Cash Flow Items": "Cash Flow Item",
+  "Investments": "Investment",
+  "Loans": "Loan",
+  "Installment Plans": "Installment Plan",
+  "Goals": "Goal",
+  "Budgets": "Budget",
+  "Transactions": "Transaction",
+  "LLM Providers": "LLM Provider",
+  "Integration Endpoints": "Integration Endpoint",
+  "Categorization Rules": "Categorization Rule",
+  "Currency Rates": "Currency Rate",
+  "Holiday Calendars": "Holiday Calendar",
+  "Recurrence Profiles": "Recurrence Profile",
+  "Users": "User",
+};
+
+function singular(title) {
+  if (SINGULAR[title]) return SINGULAR[title];
+  if (title.endsWith("ies")) return title.slice(0, -3) + "y";
+  if (title.endsWith("s")) return title.slice(0, -1);
+  return title;
+}
+
 function initialValues(fields, record) {
   const v = {};
   for (const f of fields) {
     let val = record ? record[f.name] : undefined;
     if (val === undefined || val === null) val = f.type === "boolean" ? false : "";
-    if ((f.type === "json") && val && typeof val === "object") {
+    if (f.type === "json" && val && typeof val === "object") {
       val = JSON.stringify(val, null, 2);
     }
     v[f.name] = val;
@@ -40,8 +74,9 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
   const [values, setValues] = useState(() => initialValues(cfg.fields, record));
   const [splits, setSplits] = useState([]);
   const [error, setError] = useState(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const splitsDisabled = useMemo(
     () => cfg.hasSplits && Boolean(values.cash_flow_item_id),
@@ -66,14 +101,47 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
     }
   }, [cfg.hasSplits, cfg.path, idField, isEdit, record]);
 
-  const setField = (name, val) => setValues((v) => ({ ...v, [name]: val }));
+  const setField = (name, val) => {
+    setDirty(true);
+    setValues((v) => {
+      const next = { ...v, [name]: val };
+      // A.4: default the transaction name to the cash-flow item's name.
+      if (cfg.hasSplits && name === "cash_flow_item_id" && val && !v.name) {
+        // best-effort: look up the item name from the combo cache via API is async;
+        // here we leave name empty if unknown — SplitEditor/ComboField handle labels.
+      }
+      return next;
+    });
+  };
+
+  // A.4: when a cash-flow item is picked and name is empty, default it from the item.
+  useEffect(() => {
+    if (!cfg.hasSplits) return;
+    const cfiId = values.cash_flow_item_id;
+    if (!cfiId || values.name) return;
+    let alive = true;
+    api
+      .get(`/v1/cash-flow-items/${cfiId}`)
+      .then((item) => {
+        if (alive && item && item.name) {
+          setValues((v) => (v.name ? v : { ...v, name: item.name }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [cfg.hasSplits, values.cash_flow_item_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setSplitsDirty = (rows) => {
+    setDirty(true);
+    setSplits(rows);
+  };
 
   const renderField = (f) => {
     const val = values[f.name];
     if (f.type === "boolean") {
-      return (
-        <Switch checked={Boolean(val)} onChange={(e) => setField(f.name, e.target.checked)} />
-      );
+      return <Switch checked={Boolean(val)} onChange={(e) => setField(f.name, e.target.checked)} />;
     }
     if (f.type === "textarea" || f.type === "json") {
       return (
@@ -106,17 +174,10 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
       );
     }
     if (f.type === "codeValue" || f.type === "ref") {
-      return (
-        <ComboField field={f} value={val} onChange={(v) => setField(f.name, v)} />
-      );
+      return <ComboField field={f} value={val} onChange={(v) => setField(f.name, v)} />;
     }
-    // default text
     return (
-      <Input
-        value={val ?? ""}
-        onInput={(e) => setField(f.name, e.target.value)}
-        style={{ width: "100%" }}
-      />
+      <Input value={val ?? ""} onInput={(e) => setField(f.name, e.target.value)} style={{ width: "100%" }} />
     );
   };
 
@@ -124,9 +185,7 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
     for (const f of cfg.fields) {
       if (f.required) {
         const v = values[f.name];
-        if (v === "" || v === null || v === undefined) {
-          return `${f.label} is required.`;
-        }
+        if (v === "" || v === null || v === undefined) return `${f.label} is required.`;
       }
     }
     if (cfg.hasSplits && !splitsDisabled && splits.length > 0) {
@@ -152,7 +211,6 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
         continue;
       }
       if (v === "" || v === null || v === undefined) {
-        // Skip empties on create; send null on edit to clear optionals.
         if (isEdit) out[f.name] = null;
         continue;
       }
@@ -170,6 +228,11 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
   }
 
   async function doSave() {
+    const v = validate();
+    if (v) {
+      setError(v);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -180,7 +243,6 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
       } else {
         saved = await api.post(cfg.path, payload);
       }
-      // Persist splits for transactions (unless disabled by Policy 1).
       if (cfg.hasSplits && !splitsDisabled) {
         const txnId = (saved && saved[idField]) || record?.[idField];
         if (txnId) {
@@ -194,90 +256,92 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
           await api.put(`${cfg.path}/${txnId}/splits`, { splits: clean });
         }
       }
-      setConfirmOpen(false);
+      setDirty(false);
       onSaved && onSaved(saved);
     } catch (e) {
-      setConfirmOpen(false);
       setError(e.message);
     } finally {
       setBusy(false);
     }
   }
 
-  function requestSave() {
-    const v = validate();
-    if (v) {
-      setError(v);
-      return;
+  function requestClose() {
+    if (dirty) {
+      setConfirmCancel(true);
+    } else {
+      onClose();
     }
-    setError(null);
-    setConfirmOpen(true);
   }
 
   return (
-    <Dialog
-      open
-      headerText={`${isEdit ? "Edit" : "Create"} ${cfg.title.replace(/s$/, "")}`}
-      onAfterClose={onClose}
-      style={{ width: "640px", maxWidth: "95vw" }}
-      footer={
-        <Bar
-          endContent={
-            <>
-              <Button design="Transparent" onClick={onClose}>Cancel</Button>
-              <Button design="Emphasized" onClick={requestSave}>Save</Button>
-            </>
-          }
-        />
-      }
-    >
-      <div style={{ padding: "0.5rem 0.25rem" }}>
-        {error ? (
-          <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.75rem" }}>
-            {error}
-          </MessageStrip>
-        ) : null}
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem 1rem" }}>
-          {cfg.fields.map((f) => {
-            const fullRow = f.type === "textarea" || f.type === "json";
-            return (
-              <div key={f.name} style={{ gridColumn: fullRow ? "1 / -1" : "auto" }}>
-                <Label showColon required={f.required}>{f.label}</Label>
-                <div style={{ marginTop: "0.15rem" }}>{renderField(f)}</div>
-                {f.help ? (
-                  <Label style={{ color: "var(--sapNeutralTextColor)", fontSize: "0.75rem" }}>
-                    {f.help}
-                  </Label>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        {cfg.hasSplits ? (
-          <SplitEditor
-            amount={values.amount}
-            rows={splits}
-            onChange={setSplits}
-            disabled={splitsDisabled}
+    <>
+      <Dialog
+        open
+        resizable
+        draggable
+        headerText={`${isEdit ? "Edit" : "Create"} ${singular(cfg.title)}`}
+        onAfterClose={requestClose}
+        style={{ width: "640px", maxWidth: "95vw" }}
+        footer={
+          <Bar
+            endContent={
+              <>
+                <Button design="Transparent" onClick={requestClose} disabled={busy}>Cancel</Button>
+                <Button design="Emphasized" onClick={doSave} disabled={busy}>
+                  {busy ? "Saving…" : "Save"}
+                </Button>
+              </>
+            }
           />
-        ) : null}
-      </div>
+        }
+      >
+        <div style={{ padding: "0.5rem 0.25rem" }}>
+          {error ? (
+            <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.75rem" }}>
+              {error}
+            </MessageStrip>
+          ) : null}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem 1rem" }}>
+            {cfg.fields.map((f) => {
+              const fullRow = f.type === "textarea" || f.type === "json";
+              return (
+                <div key={f.name} style={{ gridColumn: fullRow ? "1 / -1" : "auto" }}>
+                  <Label showColon required={f.required}>{f.label}</Label>
+                  <div style={{ marginTop: "0.15rem" }}>{renderField(f)}</div>
+                  {f.help ? (
+                    <Label style={{ color: "var(--sapNeutralTextColor)", fontSize: "0.75rem" }}>
+                      {f.help}
+                    </Label>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          {cfg.hasSplits ? (
+            <SplitEditor
+              amount={values.amount}
+              rows={splits}
+              onChange={setSplitsDirty}
+              disabled={splitsDisabled}
+            />
+          ) : null}
+        </div>
+      </Dialog>
 
       <ConfirmDialog
-        open={confirmOpen}
-        title={isEdit ? "Save changes?" : "Create record?"}
-        message={
-          isEdit
-            ? "Do you want to save the changes to this record?"
-            : "Do you want to create this record?"
-        }
-        confirmText="Save"
-        busy={busy}
-        onConfirm={doSave}
-        onCancel={() => setConfirmOpen(false)}
+        open={confirmCancel}
+        title="Discard changes?"
+        message="You have unsaved changes. Discard them and close?"
+        confirmText="Discard"
+        confirmDesign="Negative"
+        onConfirm={() => {
+          setConfirmCancel(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmCancel(false)}
       />
-    </Dialog>
+    </>
   );
 }

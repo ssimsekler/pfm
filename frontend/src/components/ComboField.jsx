@@ -1,21 +1,23 @@
-// Autocomplete combobox for value-help fields (ADR #32).
+// Value-help dropdown for form fields (ADR #32).
 //
 // Loads options from either a code list (type "codeValue" → listKey) or a
-// referenced entity's list endpoint (type "ref" → refEntity). Falls back to a
-// plain input if options can't be loaded. Emits the selected value's id/code.
+// referenced entity's list endpoint (type "ref" → refEntity), then renders a
+// native <select> (reliable population + selection across all dialogs; the UI5
+// ComboBox change/selection handling was unreliable and left lists empty — #11).
+// Emits the selected option's id/code (or "" when cleared).
 import { useEffect, useState } from "react";
-import { ComboBox, ComboBoxItem } from "@ui5/webcomponents-react";
 import { api } from "../api";
 import { ENTITIES } from "../entities";
 
-// Simple module-level cache so repeated forms don't refetch the same lists.
+// Module-level cache so repeated forms don't refetch the same lists.
 const cache = new Map();
 
+function cacheKey(field) {
+  return field.type === "codeValue" ? `cv:${field.listKey}` : `ref:${field.refEntity}`;
+}
+
 async function loadOptions(field) {
-  const key =
-    field.type === "codeValue"
-      ? `cv:${field.listKey}`
-      : `ref:${field.refEntity}`;
+  const key = cacheKey(field);
   if (cache.has(key)) return cache.get(key);
 
   let options = [];
@@ -46,12 +48,24 @@ export function clearComboCache() {
   cache.clear();
 }
 
+const selectStyle = {
+  width: "100%",
+  height: "2.25rem",
+  padding: "0 0.5rem",
+  border: "1px solid var(--sapField_BorderColor, #89919a)",
+  borderRadius: "var(--sapField_BorderCornerRadius, 4px)",
+  background: "var(--sapField_Background, #fff)",
+  color: "var(--sapField_TextColor, #32363a)",
+  font: "inherit",
+};
+
 export default function ComboField({ field, value, onChange, disabled }) {
   const [options, setOptions] = useState([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    setReady(false);
     loadOptions(field).then((opts) => {
       if (alive) {
         setOptions(opts);
@@ -63,28 +77,19 @@ export default function ComboField({ field, value, onChange, disabled }) {
     };
   }, [field.type, field.listKey, field.refEntity]);
 
-  // The visible text for the current value.
-  const current = options.find((o) => String(o.value) === String(value));
-  const text = current ? current.label : "";
-
-  const handleChange = (e) => {
-    const typed = e.target.value;
-    const match = options.find((o) => o.label === typed);
-    // If the typed text matches an option label, emit its value; otherwise clear.
-    onChange(match ? match.value : "");
-  };
-
   return (
-    <ComboBox
-      value={text}
+    <select
+      value={value == null ? "" : String(value)}
       disabled={disabled || !ready}
-      placeholder={ready ? "Type to search…" : "Loading…"}
-      onChange={handleChange}
-      style={{ width: "100%" }}
+      onChange={(e) => onChange(e.target.value)}
+      style={selectStyle}
     >
+      <option value="">{ready ? "— select —" : "Loading…"}</option>
       {options.map((o) => (
-        <ComboBoxItem key={String(o.value)} text={o.label} />
+        <option key={String(o.value)} value={String(o.value)}>
+          {o.label}
+        </option>
       ))}
-    </ComboBox>
+    </select>
   );
 }
