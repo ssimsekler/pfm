@@ -102,7 +102,8 @@ export default function Export() {
       {msg ? <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: "0.5rem" }}>{msg}</MessageStrip> : null}
       {err ? <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.5rem" }}>{err}</MessageStrip> : null}
 
-      <BusyIndicator active={busy} style={{ width: "100%" }}>
+      <BusyIndicator active={busy} style={{ width: "100%", display: "block" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <Card header={<CardHeader titleText="Single workbook" subtitleText="One worksheet per entity (config, master, transactional)" />}>
           <div style={{ padding: "1rem" }}>
             <Text>Download all data as a single .xlsx file with one tab per entity.</Text>
@@ -115,7 +116,6 @@ export default function Export() {
         </Card>
 
         <Card
-          style={{ marginTop: "1rem" }}
           header={<CardHeader titleText="Separate files to a server folder" subtitleText="Writes one .xlsx per entity into a mounted folder" />}
         >
           <div style={{ padding: "1rem" }}>
@@ -133,7 +133,6 @@ export default function Export() {
         </Card>
 
         <Card
-          style={{ marginTop: "1rem" }}
           header={<CardHeader titleText="Import workbook" subtitleText="Wipe & reload all entities from an export file" />}
         >
           <div style={{ padding: "1rem" }}>
@@ -176,6 +175,7 @@ export default function Export() {
             </FlexBox>
           </div>
         </Card>
+        </div>
       </BusyIndicator>
     </div>
   );

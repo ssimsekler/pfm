@@ -7,6 +7,7 @@ import { Button, Title } from "@ui5/webcomponents-react";
 import DataTable from "./DataTable";
 import EntityForm from "./EntityForm";
 import ConfirmDialog from "./ConfirmDialog";
+import FilterBar from "./FilterBar";
 import { api } from "../api";
 
 export default function EntityManager({ entity, cfg }) {
@@ -16,6 +17,7 @@ export default function EntityManager({ entity, cfg }) {
   const [deleteRow, setDeleteRow] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [filterParams, setFilterParams] = useState({});
 
   const readOnly = Boolean(cfg.readOnly);
   const refresh = () => setRefreshKey((k) => k + 1);
@@ -77,12 +79,17 @@ export default function EntityManager({ entity, cfg }) {
     <div>
       <Title level="H3" style={{ marginBottom: "1rem" }}>{cfg.title}</Title>
 
+      {cfg.filterFields && cfg.filterFields.length > 0 ? (
+        <FilterBar fields={cfg.filterFields} onApply={setFilterParams} />
+      ) : null}
+
       <DataTable
         title={cfg.title}
         path={cfg.path}
         columns={columns}
         toolbar={toolbar}
         refreshKey={refreshKey}
+        extraParams={filterParams}
       />
 
       {formRecord !== undefined ? (

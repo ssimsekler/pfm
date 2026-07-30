@@ -17,8 +17,13 @@
     transaction name from the selected cash-flow item (A.4); real **routing** via `HashRouter`
     so every screen has its own URL and Back/refresh work, plus a working avatar/profile
     popover (#3, part of #14).
-  - **Batch B (TODO):** Export/Import + Overview card spacing (#9/#12); scrollable code-list
-    card (#7); structured filter bar on all lists (#20).
+  - **Batch B (DONE):** structured **filter bar** on lists (#20) — new `FilterBar` component +
+    `EntityManager` wiring + per-entity `filterFields` in `entities.js`; backend `build_crud_router`
+    now accepts declared `filter_fields` as exact-match query params (accounts/partners/
+    beneficiaries/expense-categories/cash-flow-items), transactions already had rich filters.
+    Fixed card "snapping": Overview `Balances by Currency` (#12) and Export/Import cards (#9) now
+    use a block flex-column container inside `BusyIndicator` with gaps. Code-list card is now
+    scrollable with a sticky header (#7).
   - **Batch C (TODO):** partner country + country-aware import mapping (#4); derived level
     (#5); expense-category CSV seed (#8); loan category (#17); holiday calendar weekend/
     week-start + day editor (A.1); loan/investment auto-create backing account (A.6);

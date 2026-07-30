@@ -154,8 +154,9 @@ export default function CodeValueManager() {
             )}
           </FlexBox>
 
+          <div style={{ maxHeight: "360px", overflow: "auto", border: "1px solid var(--sapList_BorderColor,#ededed)", borderRadius: "4px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
+            <thead style={{ position: "sticky", top: 0, background: "var(--sapList_HeaderBackground,#f7f7f7)", zIndex: 1 }}>
               <tr>
                 <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Code</Label></th>
                 <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Label</Label></th>
@@ -183,6 +184,7 @@ export default function CodeValueManager() {
               ))}
             </tbody>
           </table>
+          </div>
         </BusyIndicator>
       </div>
 

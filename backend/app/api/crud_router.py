@@ -14,7 +14,7 @@ and write audit entries via the Repository.
 import uuid as uuid_lib
 from typing import Any, Type
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -44,6 +44,7 @@ def build_crud_router(
 
     @router.get("", response_model=PageOut[out_schema])
     def list_items(
+        request: Request,
         db: Session = Depends(get_db),
         _: Principal = Depends(get_current_principal),
         search: str | None = Query(None, description="Free-text search"),
@@ -52,8 +53,13 @@ def build_crud_router(
         offset: int = Query(0, ge=0),
         include_deleted: bool = Query(False),
     ):
-        # Entity-specific structured filters are added per-router when needed.
+        # Structured equality filters from declared filter_fields (query params),
+        # each mapping to an exact-match on the model column (Decision #25).
         active_filters: dict[str, Any] = {}
+        for _field in filter_fields:
+            _val = request.query_params.get(_field)
+            if _val not in (None, ""):
+                active_filters[_field] = _val
         page = repo.list(
             db,
             search=search,

@@ -64,7 +64,8 @@ export default function Launchpad({ navigate }) {
   return (
     <div>
       <Title level="H3" style={{ marginBottom: "1rem" }}>Overview</Title>
-      <BusyIndicator active={loading} style={{ width: "100%" }}>
+      <BusyIndicator active={loading} style={{ width: "100%", display: "block" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <FlexBox wrap={FlexBoxWrap.Wrap} style={{ gap: "1rem" }}>
           <KpiTile
             icon="money-bills"
@@ -97,20 +98,23 @@ export default function Launchpad({ navigate }) {
         </FlexBox>
 
         {cash?.per_currency ? (
-          <Card
-            style={{ marginTop: "1.5rem", maxWidth: "600px" }}
-            header={<CardHeader titleText="Balances by Currency" />}
-          >
-            <div style={{ padding: "1rem" }}>
-              {Object.entries(cash.per_currency).map(([ccy, amt]) => (
-                <FlexBox key={ccy} style={{ justifyContent: "space-between", padding: "0.25rem 0" }}>
-                  <Text>{ccy}</Text>
-                  <Text>{Number(amt).toLocaleString()}</Text>
-                </FlexBox>
-              ))}
-            </div>
-          </Card>
+          <div>
+            <Card
+              style={{ maxWidth: "600px" }}
+              header={<CardHeader titleText="Balances by Currency" />}
+            >
+              <div style={{ padding: "1rem" }}>
+                {Object.entries(cash.per_currency).map(([ccy, amt]) => (
+                  <FlexBox key={ccy} style={{ justifyContent: "space-between", padding: "0.25rem 0" }}>
+                    <Text>{ccy}</Text>
+                    <Text>{Number(amt).toLocaleString()}</Text>
+                  </FlexBox>
+                ))}
+              </div>
+            </Card>
+          </div>
         ) : null}
+        </div>
       </BusyIndicator>
     </div>
   );

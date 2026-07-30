@@ -84,6 +84,11 @@ export const ENTITIES = {
   accounts: {
     title: "Accounts",
     path: "/v1/accounts",
+    filterFields: [
+      { name: "currency", label: "Currency", kind: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" },
+      { name: "account_type_cv_id", label: "Type", kind: "codeValue", listKey: "account_type" },
+      { name: "institution_id", label: "Institution", kind: "ref", refEntity: "institutions" },
+    ],
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
@@ -106,6 +111,9 @@ export const ENTITIES = {
   partners: {
     title: "Partners",
     path: "/v1/partners",
+    filterFields: [
+      { name: "partner_type_cv_id", label: "Type", kind: "codeValue", listKey: "partner_type" },
+    ],
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
@@ -153,6 +161,11 @@ export const ENTITIES = {
   "cash-flow-items": {
     title: "Cash Flow Items",
     path: "/v1/cash-flow-items",
+    filterFields: [
+      { name: "flow_type_cv_id", label: "Flow Type", kind: "codeValue", listKey: "flow_type" },
+      { name: "expense_category_id", label: "Category", kind: "ref", refEntity: "expense-categories" },
+      { name: "status_cv_id", label: "Status", kind: "codeValue", listKey: "cash_flow_status" },
+    ],
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
@@ -283,6 +296,16 @@ export const ENTITIES = {
     title: "Transactions",
     path: "/v1/transactions",
     hasSplits: true,
+    filterFields: [
+      { name: "account_id", label: "Account", kind: "ref", refEntity: "accounts" },
+      { name: "partner_id", label: "Partner", kind: "ref", refEntity: "partners" },
+      { name: "beneficiary_id", label: "Beneficiary", kind: "ref", refEntity: "beneficiaries" },
+      { name: "expense_category_id", label: "Category", kind: "ref", refEntity: "expense-categories" },
+      { name: "status_cv_id", label: "Status", kind: "codeValue", listKey: "transaction_status" },
+      { name: "currency", label: "Currency", kind: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" },
+      { name: "txn_date", label: "Date", kind: "dateRange", fromParam: "date_from", toParam: "date_to" },
+      { name: "amount", label: "Amount", kind: "numberRange", fromParam: "amount_min", toParam: "amount_max" },
+    ],
     columns: [
       { key: "name", label: "Name" },
       { key: "txn_date", label: "Date" },

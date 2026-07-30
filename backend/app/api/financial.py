@@ -59,6 +59,7 @@ account_router = build_crud_router(
     entity_type="account", event_domain="account",
     out_schema=AccountOut, create_schema=AccountCreate, update_schema=AccountUpdate,
     search_columns=["currency"],
+    filter_fields=["currency", "account_type_cv_id", "institution_id", "is_active"],
 )
 
 
@@ -85,6 +86,7 @@ partner_router = build_crud_router(
     prefix="/api/v1/partners", tag="partners", model=fin.Partner,
     entity_type="partner", event_domain="partner",
     out_schema=PartnerOut, create_schema=PartnerCreate, update_schema=PartnerUpdate,
+    filter_fields=["partner_type_cv_id", "country_id"],
 )
 
 
@@ -114,6 +116,7 @@ beneficiary_router = build_crud_router(
     prefix="/api/v1/beneficiaries", tag="beneficiaries", model=fin.Beneficiary,
     entity_type="beneficiary", event_domain="beneficiary",
     out_schema=BeneficiaryOut, create_schema=BeneficiaryCreate, update_schema=BeneficiaryUpdate,
+    filter_fields=["parent_id", "level"],
 )
 
 
@@ -144,6 +147,7 @@ expense_category_router = build_crud_router(
     entity_type="expense_category", event_domain="expense_category",
     out_schema=ExpenseCategoryOut, create_schema=ExpenseCategoryCreate,
     update_schema=ExpenseCategoryUpdate,
+    filter_fields=["parent_id", "level"],
 )
 
 
@@ -186,6 +190,7 @@ cash_flow_item_router = build_crud_router(
     entity_type="cash_flow_item", event_domain="cash_flow_item",
     out_schema=CashFlowItemOut, create_schema=CashFlowItemCreate,
     update_schema=CashFlowItemUpdate,
+    filter_fields=["flow_type_cv_id", "expense_category_id", "currency", "status_cv_id"],
 )
 
 
