@@ -14,3 +14,17 @@ from app.models.meta import (  # noqa: F401
 )
 from app.models.security import Household, AppUser, Role, UserRole  # noqa: F401
 from app.models.reference import Currency, Country, Institution  # noqa: F401
+from app.models.financial import (  # noqa: F401
+    Account,
+    Partner,
+    Beneficiary,
+    ExpenseCategory,
+    CashFlowItem,
+    TransferGroup,
+    Transaction,
+    TransactionSplit,
+    Tag,
+    EntityTag,
+    Attachment,
+    CurrencyRate,
+)

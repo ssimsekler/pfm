@@ -5,23 +5,27 @@
 
 ## Current status
 
-- **Active phase:** Phase 1 — Data & platform core (COMPLETE) → next: Phase 2
-- **Last completed (Phase 1):** app config, DB session + declarative base (`pfm` schema),
-  base entity mixin, meta models (app_config, id_sequence, code_list/value, event_outbox,
-  audit_log), security models (household, app_user, role, user_role), reference models
-  (currency, country, institution), id-sequence service, CloudEvents outbox + audit services,
-  seed data (23 code lists + currencies + countries + roles + app_config), idempotent seeder,
-  Alembic scaffold, startup bootstrap, value-help API, DB-backed readiness probe,
-  **Keycloak OIDC auth + RBAC** (`core/security.py`, dev-friendly fallback + `require_write`),
-  and a **generic Repository** with search/filter/sort/pagination + soft delete + audit + events
-  (`services/repository.py`). All 22 backend files pass syntax check.
-- **Next step:** Begin **Phase 2 — Core financial APIs**: models for account, partner,
-  beneficiary, expense_category, cash_flow_item, transaction (+split), transfer_group,
-  currency_rate (validity periods), tag/entity_tag, attachment; Pydantic schemas; CRUD routers
-  built on `Repository` with search/filter; the FX validity-period lookup service; transfers
-  (dual-leg). Then replace create_all with a generated Alembic migration.
+- **Active phase:** Phase 2 — Core financial APIs (IN PROGRESS)
+- **Last completed (Phase 2 so far):** financial models (`models/financial.py`: account,
+  partner, beneficiary, expense_category, cash_flow_item, transfer_group, transaction,
+  transaction_split, tag, entity_tag, attachment, currency_rate with validity periods);
+  registered in `models/__init__`; **FX service** (`services/fx.py`: validity-period lookup
+  `begin<=date<end` + inverse + fallbacks + convert); shared API schemas + generic CRUD router
+  factory (`api/crud_router.py`); **CRUD routers** for accounts, partners, beneficiaries,
+  expense-categories, cash-flow-items, tags (search/sort/pagination, RBAC write guard, audit,
+  events); dedicated **transactions router** with rich filters (account/partner/beneficiary/
+  category/cash_flow_item/status/currency/date-range/amount-range) + **Policy 1** enforcement;
+  **transfers** (dual-leg → 2 txns + transfer_group, cross-currency fx_rate) and
+  **currency-rates CRUD** + `GET /api/v1/fx/convert`. Routers wired into `main.py`.
+  All 28 backend files pass syntax check (full runtime validated via docker compose).
+- **Next step (Phase 2 remaining):** attachments upload (MinIO) + entity_tag assignment
+  endpoints; account→institution/country value help already available via `/code-lists` +
+  country/institution CRUD (add simple routers); generate the first real **Alembic migration**
+  to replace `create_all`; add the `currency_rate` GiST no-overlap constraint (Decision #26)
+  in that migration. Then Phase 3.
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET http://localhost/api/ready` (db ok) and `GET http://localhost/api/v1/code-lists`.
+  `GET /api/ready`, `/api/v1/code-lists`, `/api/v1/accounts`, `/api/v1/transactions`,
+  `/api/v1/fx/convert?amount=100&from_ccy=AED&to_ccy=USD`.
 
 ## How to resume
 
