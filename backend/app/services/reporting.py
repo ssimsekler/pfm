@@ -29,10 +29,8 @@ def _to_reporting(db: Session, amount: Decimal, ccy: str, on: date) -> Decimal:
     return converted if converted is not None else Decimal(amount)
 
 
-def volume_by_category(
-    db: Session, date_from: date | None, date_to: date | None
-) -> list[dict]:
-    """Transaction volume grouped by top-level expense category, in reporting ccy."""
+def volume_by_category(db: Session, date_from: date | None, date_to: date | None) -> list[dict]:
+    """Transaction volume grouped by expense category, in reporting ccy."""
     stmt = select(Transaction).where(Transaction.deleted_at.is_(None))
     if date_from:
         stmt = stmt.where(Transaction.txn_date >= date_from)
@@ -54,9 +52,7 @@ def volume_by_category(
     ]
 
 
-def volume_by_field(
-    db: Session, field: str, date_from: date | None, date_to: date | None
-) -> list[dict]:
+def volume_by_field(db: Session, field: str, date_from: date | None, date_to: date | None) -> list[dict]:
     """Generic volume by a transaction FK id field (partner_id/beneficiary_id)."""
     stmt = select(Transaction).where(Transaction.deleted_at.is_(None))
     if date_from:
@@ -78,16 +74,13 @@ def volume_by_field(
 def cash_position(db: Session, as_of: date | None = None) -> dict:
     """Cash position per account + per-currency subtotals + reporting-ccy total."""
     on = as_of or date.today()
-    accounts = db.execute(
-        select(Account).where(Account.deleted_at.is_(None))
-    ).scalars()
+    accounts = db.execute(select(Account).where(Account.deleted_at.is_(None))).scalars()
 
     per_account = []
     per_currency: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
     total_reporting = Decimal(0)
 
     for acc in accounts:
-        # Balance = opening + sum(signed transaction amounts up to as_of).
         txns = db.execute(
             select(Transaction).where(
                 Transaction.account_id == acc.uuid,
@@ -119,26 +112,29 @@ def cash_position(db: Session, as_of: date | None = None) -> dict:
 
 
 def net_worth(db: Session, as_of: date | None = None) -> dict:
-    """Assets (cash + investments) − liabilities (loan/credit balances) in reporting ccy."""
+    """Net worth in reporting ccy = account balances (incl. negative liabilities) + investments.
+
+    Credit-card/loan accounts carry negative balances via their transactions, so
+    liabilities are already netted into the account balances.
+    """
     on = as_of or date.today()
     cash = cash_position(db, on)
     assets = Decimal(cash["total_reporting"])
 
-    # Investments at current cached value.
     holdings = db.execute(
         select(InvestmentHolding).where(InvestmentHolding.deleted_at.is_(None))
     ).scalars()
     investments = Decimal(0)
     for h in holdings:
         if h.current_value_cache is not None:
-            investments += _to_reporting(db, Decimal(h.current_value_cache), h.currency or _reporting_ccy(), on)
+            investments += _to_reporting(
+                db, Decimal(h.current_value_cache), h.currency or _reporting_ccy(), on
+            )
 
-    net = assets + investments
     return {
         "as_of": on.isoformat(),
         "reporting_currency": _reporting_ccy(),
         "cash_and_accounts": cash["total_reporting"],
         "investments": str(investments),
-        "net_worth": str(net + investments - investments + (Decimal(0))),  # net = assets+investments
-        "total": str(assets + investments),
+        "net_worth": str(assets + investments),
     }

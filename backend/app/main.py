@@ -14,6 +14,7 @@ from app.api.automation import ALL_ROUTERS as AUTOMATION_ROUTERS
 from app.api.financial import ALL_ROUTERS as FINANCIAL_ROUTERS
 from app.api.imports import ALL_ROUTERS as IMPORT_ROUTERS
 from app.api.reference import ALL_ROUTERS as REFERENCE_ROUTERS
+from app.api.reporting import ALL_ROUTERS as REPORTING_ROUTERS
 from app.api.scheduling import ALL_ROUTERS as SCHEDULING_ROUTERS
 from app.api.transfers_fx import ALL_ROUTERS as TRANSFERS_FX_ROUTERS
 from app.api.value_help import router as value_help_router
@@ -46,6 +47,7 @@ for _router in [
     *SCHEDULING_ROUTERS,
     *AUTOMATION_ROUTERS,
     *IMPORT_ROUTERS,
+    *REPORTING_ROUTERS,
     *ATTACH_TAG_ROUTERS,
 ]:
     app.include_router(_router)
