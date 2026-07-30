@@ -40,10 +40,13 @@
       on the Loans and Installments lists.
     - DONE: **investment valuation history UI** (#18) [ADR #54] — frontend `ValuationDialog`
       (trend line chart + history table + manual add + refresh-from-source) via a "Valuation
-      history" row action on Investments, over the existing valuations endpoints. Frontend builds
-      (deps reinstalled: `node_modules` had been cleared); backend compiles clean.
-    - TODO: recurring items UI (#19); transfers dialog (A.5); auth: admin user + Users admin +
-      password fallback (#14); in-app Help/Wiki (A.2).
+      history" row action on Investments, over the existing valuations endpoints.
+    - DONE: **recurring cash-flow items UI** (#19) [ADR #55] — new **Recurring** page (Planning nav)
+      lists pending occurrences (`GET /v1/recurring/pending?until=`) and materializes them via
+      `MaterializeDialog`; `recurrence-profiles` now a managed entity (Configuration) and
+      `cash-flow-items` gained a `recurrence_profile_id` field. Frontend builds.
+    - TODO: transfers dialog (A.5); auth: admin user + Users admin + password fallback (#14);
+      in-app Help/Wiki (A.2).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a

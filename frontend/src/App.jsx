@@ -40,6 +40,7 @@ import { initAuth, getUser, login, logout } from "./auth";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
 import CashFlowItems from "./pages/CashFlowItems";
+import RecurringItems from "./pages/RecurringItems";
 import Budgets from "./pages/Budgets";
 import EntityList from "./pages/EntityList";
 import Reports from "./pages/Reports";
@@ -61,6 +62,7 @@ const SCREENS = {
   beneficiaries: () => <EntityList entity="beneficiaries" />,
   "expense-categories": () => <EntityList entity="expense-categories" />,
   "cash-flow-items": () => <CashFlowItems />,
+  recurring: () => <RecurringItems />,
   investments: () => <EntityList entity="investments" />,
   loans: () => <EntityList entity="loans" />,
   "installment-plans": () => <EntityList entity="installment-plans" />,
@@ -102,6 +104,7 @@ const NAV = [
   {
     subheader: "Planning",
     items: [
+      { label: "Recurring", key: "recurring", icon: <ReceiptLongIcon /> },
       { label: "Budgets", key: "budgets", icon: <AssessmentIcon /> },
       { label: "Reports", key: "reports", icon: <AssessmentIcon /> },
     ],

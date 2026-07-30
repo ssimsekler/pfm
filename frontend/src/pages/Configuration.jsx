@@ -13,6 +13,7 @@ const CONFIG_ENTITIES = [
   "integration-endpoints",
   "categorization-rules",
   "currency-rates",
+  "recurrence-profiles",
 ];
 
 export default function Configuration() {

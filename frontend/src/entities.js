@@ -178,6 +178,7 @@ export const ENTITIES = {
       { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories", required: true },
       { name: "expected_amount", label: "Expected Amount", type: "number" },
       { ...CURRENCY_FIELD },
+      { name: "recurrence_profile_id", label: "Recurrence Profile", type: "ref", refEntity: "recurrence-profiles", help: "Link a schedule to list this item under Recurring." },
       { name: "status_cv_id", label: "Status", type: "codeValue", listKey: "cfi_status" },
       { name: "description", label: "Description", type: "textarea" },
     ],
@@ -425,6 +426,27 @@ export const ENTITIES = {
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+  },
+
+  "recurrence-profiles": {
+    title: "Recurrence Profiles",
+    path: "/v1/recurrence-profiles",
+    columns: [
+      { key: "name", label: "Name" },
+      { key: "mnemonic_id", label: "ID" },
+      { key: "start_date", label: "Start" },
+      { key: "end_date", label: "End" },
+    ],
+    fields: [
+      { name: "name", label: "Name", type: "text", required: true },
+      { name: "frequency_type_cv_id", label: "Frequency", type: "codeValue", listKey: "frequency_type" },
+      { name: "start_date", label: "Start Date", type: "date", required: true },
+      { name: "end_date", label: "End Date", type: "date" },
+      { name: "business_day_rule_cv_id", label: "Business Day Rule", type: "codeValue", listKey: "business_day_rule" },
+      { name: "holiday_calendar_id", label: "Holiday Calendar", type: "ref", refEntity: "holiday-calendars" },
+      { name: "config", label: "Config (JSON)", type: "json", help: "e.g. {\"nth\":5} or {\"weekday\":\"MON\"}" },
       { name: "description", label: "Description", type: "textarea" },
     ],
   },
