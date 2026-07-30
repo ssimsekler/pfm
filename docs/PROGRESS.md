@@ -33,10 +33,13 @@
   - **Round 2 Batch 4 (IN PROGRESS):**
     - DONE: **more reports** (#13) [ADR #52] — `monthly-trend` endpoint + service and a Reports
       **Monthly Trend** line chart + **Budget vs. Actual** bar chart (per-budget picker on the
-      existing `/variance` endpoint). Frontend builds; backend compiles clean.
-    - TODO: installment/loan payment tracking (#15/#16); investment valuation history UI (#18);
-      recurring items UI (#19); transfers dialog (A.5); auth: admin user + Users admin + password
-      fallback (#14); in-app Help/Wiki (A.2).
+      existing `/variance` endpoint).
+    - DONE: **installment/loan payment tracking** (#15/#16) [ADR #53] — `POST …/schedule/{sid}/pay`
+      on installment-plans (marks paid) and loans (principal+interest); frontend `ScheduleDialog`
+      (generate schedule + record payments, paid indicator) via a "Schedule & payments" row action
+      on the Loans and Installments lists. Frontend builds; backend compiles clean.
+    - TODO: investment valuation history UI (#18); recurring items UI (#19); transfers dialog (A.5);
+      auth: admin user + Users admin + password fallback (#14); in-app Help/Wiki (A.2).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a

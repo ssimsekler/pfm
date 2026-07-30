@@ -16,9 +16,22 @@ from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
 from app.models import financial as fin
 from app.models import scheduling as sch
+from app.models.meta import CodeList, CodeValue
 from app.services import recurrence, schedules
 from app.services.auto_account import ensure_backing_account
 from app.services.repository import Repository
+
+
+def _status_cv(db: Session, list_key: str, code: str) -> uuid_lib.UUID | None:
+    """Resolve a code_value uuid by (list_key, code); None if not found."""
+    cl = db.execute(select(CodeList).where(CodeList.list_key == list_key)).scalar_one_or_none()
+    if cl is None:
+        return None
+    cv = db.execute(
+        select(CodeValue).where(CodeValue.code_list_id == cl.uuid, CodeValue.code == code)
+    ).scalar_one_or_none()
+    return cv.uuid if cv else None
+
 
 # ---------------------------------------------------------------------------
 # Holiday calendar (+ days)
@@ -248,6 +261,46 @@ def get_installment_schedule(
     return list(db.execute(stmt).scalars())
 
 
+class PayInstallmentIn(BaseModel):
+    account_id: uuid_lib.UUID | None = None
+    txn_date: date | None = None
+
+
+@installment_plan_router.post("/{plan_id}/schedule/{schedule_id}/pay", response_model=InstallmentScheduleOut)
+def pay_installment(
+    plan_id: uuid_lib.UUID,
+    schedule_id: uuid_lib.UUID,
+    payload: PayInstallmentIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_write),
+):
+    """Record a payment for an installment: create a linked transaction and mark paid (#15)."""
+    plan = db.get(sch.InstallmentPlan, plan_id)
+    row = db.get(sch.InstallmentSchedule, schedule_id)
+    if plan is None or row is None or row.plan_id != plan_id:
+        raise HTTPException(status_code=404, detail="installment schedule not found")
+    account_id = payload.account_id or plan.account_id
+    if account_id is None:
+        raise HTTPException(status_code=422, detail="No account to book the payment against")
+    txn = _txn_repo.create(
+        db,
+        {
+            "name": f"Installment {row.seq} — {plan.name}",
+            "account_id": account_id,
+            "txn_date": payload.txn_date or row.due_date,
+            "amount": row.amount,
+            "currency": plan.currency or "USD",
+            "installment_plan_id": plan.uuid,
+            "note": f"Installment payment {row.seq}/{plan.installment_count} for {plan.mnemonic_id}",
+        },
+    )
+    row.linked_txn_id = txn.uuid
+    row.status_cv_id = _status_cv(db, "installment_status", "paid")
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 # ---------------------------------------------------------------------------
 # Loan (+ amortization)
 # ---------------------------------------------------------------------------
@@ -335,6 +388,52 @@ def get_loan_schedule(
         sch.AmortizationSchedule.loan_id == loan_id
     ).order_by(sch.AmortizationSchedule.period)
     return list(db.execute(stmt).scalars())
+
+
+class AmortizationOutLinked(AmortizationOut):
+    linked_txn_id: uuid_lib.UUID | None = None
+
+
+class PayLoanIn(BaseModel):
+    account_id: uuid_lib.UUID | None = None
+    txn_date: date | None = None
+
+
+@loan_router.post("/{loan_id}/schedule/{schedule_id}/pay", response_model=AmortizationOutLinked)
+def pay_loan_period(
+    loan_id: uuid_lib.UUID,
+    schedule_id: uuid_lib.UUID,
+    payload: PayLoanIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_write),
+):
+    """Record a loan payment for an amortization period: create a linked transaction (#16)."""
+    loan = db.get(sch.Loan, loan_id)
+    row = db.get(sch.AmortizationSchedule, schedule_id)
+    if loan is None or row is None or row.loan_id != loan_id:
+        raise HTTPException(status_code=404, detail="loan schedule not found")
+    account_id = payload.account_id or loan.account_id
+    if account_id is None:
+        raise HTTPException(status_code=422, detail="No account to book the payment against")
+    amount = Decimal(row.principal_portion or 0) + Decimal(row.interest_portion or 0)
+    txn = _txn_repo.create(
+        db,
+        {
+            "name": f"Loan payment {row.period} — {loan.name}",
+            "account_id": account_id,
+            "txn_date": payload.txn_date or row.due_date,
+            "amount": amount,
+            "currency": loan.currency or "USD",
+            "note": (
+                f"Loan payment period {row.period}/{loan.term_months} for {loan.mnemonic_id} "
+                f"(principal {row.principal_portion}, interest {row.interest_portion})"
+            ),
+        },
+    )
+    row.linked_txn_id = txn.uuid
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 # ---------------------------------------------------------------------------
