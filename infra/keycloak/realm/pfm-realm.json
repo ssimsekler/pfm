@@ -1,0 +1,29 @@
+{
+  "realm": "pfm",
+  "enabled": true,
+  "displayName": "PFM",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "Owner", "description": "Full control of the household workspace" },
+      { "name": "Editor", "description": "Create/edit financial data" },
+      { "name": "Viewer", "description": "Read-only access" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "pfm-frontend",
+      "name": "PFM Frontend SPA",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost/*", "http://localhost:5173/*"],
+      "webOrigins": ["http://localhost", "http://localhost:5173"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.log
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# Docker / data volumes
+infra/data/
+*.pid
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Secrets
+*.pem
+*.key
+secrets/
