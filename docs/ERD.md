@@ -22,6 +22,77 @@ PostgreSQL. All tables carry the **Base columns** unless noted. Types are Postgr
 
 ---
 
+## Configurable code lists (enumerated value sets)
+
+**Every enumerated value set is a configurable entity**, not a hard-coded enum. This drives
+value helps / comboboxes in the UI and server-side entry validation via FK constraints.
+(Decision #23.)
+
+Two tables implement a generic, extensible pattern:
+
+### code_list
+Base columns +:
+| Column | Type | Notes |
+|---|---|---|
+| list_key | VARCHAR(60) UNIQUE | e.g. `partner_type`, `account_type`, `txn_status` |
+| is_system | BOOLEAN | system lists cannot be deleted, only extended |
+| allow_user_values | BOOLEAN | whether users may add new codes |
+| mnemonic_id | `CDL-00001` | |
+
+### code_value
+Base columns +:
+| Column | Type | Notes |
+|---|---|---|
+| code_list_id | UUID FK code_list | |
+| code | VARCHAR(60) | stable machine value (e.g. `supplier`) |
+| label | VARCHAR(120) | display text (localizable later) |
+| sort_order | INT | ordering in value helps |
+| is_default | BOOLEAN | preselected value |
+| is_active | BOOLEAN | inactive values hidden from new entries but kept for history |
+| parent_code_value_id | UUID FK code_value NULL | for dependent lists (cascading value help) |
+| extra | JSONB | e.g. color, icon, semantic state |
+| mnemonic_id | `CDV-000001` | |
+| UNIQUE(code_list_id, code) | | |
+
+**How referencing tables use it:** each former enum column becomes
+`<name>_code_value_id UUID FK code_value` (validated to belong to the correct `code_list`
+via a composite FK or a service/trigger check on `code_list.list_key`). The UI reads the
+list's active values for comboboxes; the API validates the submitted value against them.
+
+**Seeded system code lists (predefined values, per recommendation):**
+
+| list_key | Seeded values (code) | Used by |
+|---|---|---|
+| `account_type` | bank, credit_card, investment, cash, loan | account.account_type |
+| `partner_type` | person, supplier, employer, other | partner.partner_type |
+| `txn_status` | pending, cleared, reconciled | transaction.status |
+| `txn_direction` | debit, credit | transaction.direction |
+| `flow_type` | income, expense | cash_flow_item.flow_type, budget_line.direction |
+| `cfi_status` | open, partially_paid, settled | cash_flow_item.status |
+| `frequency_type` | weekly, monthly_nth_day, monthly_last_bday, monthly_last_day, yearly, quarterly | recurrence_profile.frequency_type, installment_plan.frequency |
+| `business_day_rule` | none, prev_bday, next_bday | recurrence_profile.business_day_rule |
+| `asset_type` | stock, etf, crypto, asset | investment_holding.asset_type |
+| `valuation_source` | manual, api | valuation_history.source |
+| `rate_source` | manual, api, import | currency_rate.source |
+| `installment_status` | due, paid, overdue | installment_schedule.status |
+| `import_status` | uploaded, parsed, previewed, committed, failed | document_import.status |
+| `mapping_status` | matched, new, unmapped | document_import_row.mapping_status |
+| `auth_type` | none, api_key, oauth, basic | integration_endpoint.auth_type |
+| `llm_kind` | openai, azure, anthropic, ollama, custom | llm_provider.kind |
+| `notification_type` | recurring_due, budget_overrun, installment_due, loan_due, valuation_updated | notification.type |
+| `notification_channel` | in_app, email | notification.channel |
+| `notification_status` | pending, sent, read | notification.status |
+| `outbox_status` | pending, published, failed | event_outbox.status |
+| `audit_operation` | create, update, delete, restore | audit_log.operation |
+| `source_channel` | ui, api, import, job | audit_log.source_channel |
+| `config_value_type` | bool, string, int, json | app_config.value_type |
+
+> Note: hierarchy **level** fields (beneficiary 1–2, expense_category 1–3) remain integer
+> constraints, not code lists, since they are structural. Reporting `v_*` views may resolve
+> code_value labels for readability.
+
+---
+
 ## Security & tenancy
 
 ### household
@@ -58,7 +129,7 @@ Base columns. Seeded: Owner, Editor, Viewer.
 |---|---|---|
 | key | VARCHAR(120) PK | e.g. `llm.master_enabled` |
 | value | JSONB | |
-| value_type | VARCHAR(20) | bool/string/int/json |
+| value_type_cv_id | UUID FK code_value | list_key `config_value_type` |
 | description | TEXT | |
 | updated_at/by | | |
 
@@ -81,7 +152,7 @@ Base columns. Seeded: Owner, Editor, Viewer.
 Base columns +:
 | Column | Type | Notes |
 |---|---|---|
-| kind | VARCHAR(40) | openai/azure/ollama/anthropic/... |
+| kind_cv_id | UUID FK code_value | list_key `llm_kind` |
 | base_url | VARCHAR(500) | |
 | model | VARCHAR(120) | |
 | credentials_ref | VARCHAR(200) | secret reference (not raw) |
@@ -103,7 +174,7 @@ Base columns +:
 | scenario_key | VARCHAR(60) | `FX_RATES`, `STOCK_QUOTE`, `CRYPTO_QUOTE`, `SMTP` |
 | provider_name | VARCHAR(120) | |
 | base_url | VARCHAR(500) | |
-| auth_type | VARCHAR(20) | none/api_key/oauth/basic |
+| auth_type_cv_id | UUID FK code_value | list_key `auth_type` |
 | credentials_ref | VARCHAR(200) | secret reference |
 | config | JSONB | request templates, field maps |
 | timeout_ms | INT | |
@@ -122,7 +193,7 @@ Base columns +:
 | dataschema | VARCHAR(300) NULL | |
 | data | JSONB | payload/delta |
 | traceparent | VARCHAR(120) NULL | correlation |
-| status | VARCHAR(20) | pending/published/failed |
+| status_cv_id | UUID FK code_value | list_key `outbox_status` |
 | attempts | INT | |
 | last_error | TEXT NULL | |
 | published_at | TIMESTAMPTZ NULL | |
@@ -134,13 +205,13 @@ Base columns +:
 | entity_type | VARCHAR(60) | |
 | entity_uuid | UUID | |
 | entity_mnemonic | VARCHAR(20) | |
-| operation | VARCHAR(20) | create/update/delete/restore |
+| operation_cv_id | UUID FK code_value | list_key `audit_operation` |
 | before | JSONB NULL | |
 | after | JSONB NULL | |
 | changed_by | UUID FK app_user | |
 | changed_at | TIMESTAMPTZ | |
 | correlation_id | UUID NULL | links to event_outbox.id |
-| source_channel | VARCHAR(20) | ui/api/import/job |
+| source_channel_cv_id | UUID FK code_value | list_key `source_channel` |
 
 ---
 
@@ -162,18 +233,22 @@ Base columns +:
 | quote_ccy | CHAR(3) FK currency | |
 | rate | NUMERIC(18,8) | |
 | rate_date | DATE | |
-| source | VARCHAR(40) | manual/api/import |
+| source_cv_id | UUID FK code_value | list_key `rate_source` |
 | UNIQUE(base_ccy, quote_ccy, rate_date) | | closest-date lookup by rate_date |
 
 ---
 
 ## Core financial
 
+> **Enum→FK convention:** columns below named `*_cv_id` are FKs to `code_value`
+> constrained to a specific `code_list.list_key` (shown in Notes). They drive value helps
+> and validation (Decision #23).
+
 ### account
 Base columns +:
 | Column | Type | Notes |
 |---|---|---|
-| account_type | VARCHAR(20) | bank/credit_card/investment/cash/loan |
+| account_type_cv_id | UUID FK code_value | list_key `account_type` |
 | currency | CHAR(3) FK currency | |
 | opening_balance | NUMERIC(18,4) | |
 | opening_balance_date | DATE | |
@@ -184,7 +259,7 @@ Base columns +:
 Base columns +:
 | Column | Type | Notes |
 |---|---|---|
-| partner_type | VARCHAR(20) | person/supplier/employer/other |
+| partner_type_cv_id | UUID FK code_value | list_key `partner_type` |
 | mnemonic_id | `PRT-00001` | |
 
 ### beneficiary  (2-level hierarchy)
@@ -207,11 +282,11 @@ Base columns +:
 Base columns +:
 | Column | Type | Notes |
 |---|---|---|
-| frequency_type | VARCHAR(30) | weekly/monthly_nth_day/monthly_last_bday/yearly/... |
+| frequency_type_cv_id | UUID FK code_value | list_key `frequency_type` |
 | config | JSONB | e.g. {nth:5} or {weekday:MON} |
 | start_date | DATE | |
 | end_date | DATE NULL | |
-| business_day_rule | VARCHAR(20) | none/prev_bday/next_bday |
+| business_day_rule_cv_id | UUID FK code_value | list_key `business_day_rule` |
 | holiday_calendar_id | UUID FK holiday_calendar NULL | |
 
 ### holiday_calendar
@@ -229,12 +304,12 @@ Base columns (name e.g. "UAE 2025").
 Base columns +:
 | Column | Type | Notes |
 |---|---|---|
-| flow_type | VARCHAR(10) | income/expense |
+| flow_type_cv_id | UUID FK code_value | list_key `flow_type` |
 | expense_category_id | UUID FK expense_category | authoritative category (Policy 1) |
 | recurrence_profile_id | UUID FK recurrence_profile NULL | |
 | expected_amount | NUMERIC(18,4) NULL | |
 | currency | CHAR(3) FK currency | |
-| status | VARCHAR(20) | open/partially_paid/settled |
+| status_cv_id | UUID FK code_value | list_key `cfi_status` |
 | mnemonic_id | `CFI-00001` | |
 
 ### transaction
@@ -246,7 +321,7 @@ Base columns +:
 | booking_date | DATE NULL | |
 | amount | NUMERIC(18,4) | signed by direction |
 | currency | CHAR(3) FK currency | |
-| direction | VARCHAR(6) | debit/credit |
+| direction_cv_id | UUID FK code_value | list_key `txn_direction` |
 | partner_id | UUID FK partner NULL | |
 | beneficiary_id | UUID FK beneficiary NULL | when not split |
 | expense_category_id | UUID FK expense_category NULL | inherited from item if item-linked (Policy 1) |
@@ -256,7 +331,7 @@ Base columns +:
 | installment_plan_id | UUID FK installment_plan NULL | |
 | source_document_id | UUID FK document_import NULL | |
 | is_split | BOOLEAN | if true, see transaction_split |
-| status | VARCHAR(12) | pending/cleared/reconciled |
+| status_cv_id | UUID FK code_value | list_key `txn_status` |
 | note | TEXT | import note incl. filename |
 | mnemonic_id | `TRN-0000000001` | |
 | UNIQUE(cash_flow_item_id, expense_item_seq_no) | | when both not null |
@@ -293,7 +368,7 @@ Base columns +:
 | total_amount | NUMERIC(18,4) | |
 | installment_count | INT | |
 | start_date | DATE | |
-| frequency | VARCHAR(30) | reuses recurrence semantics |
+| frequency_cv_id | UUID FK code_value | list_key `frequency_type` |
 | interest_rate | NUMERIC(9,4) NULL | |
 | currency | CHAR(3) FK currency | |
 | mnemonic_id | `INS-00001` | |
@@ -306,7 +381,7 @@ Base columns +:
 | seq | INT | 1..count |
 | due_date | DATE | |
 | amount | NUMERIC(18,4) | |
-| status | VARCHAR(12) | due/paid/overdue |
+| status_cv_id | UUID FK code_value | list_key `installment_status` |
 | linked_txn_id | UUID FK transaction NULL | |
 
 ### loan (liability)
@@ -355,7 +430,7 @@ Base columns +:
 |---|---|---|
 | account_id | UUID FK account | investment account |
 | symbol | VARCHAR(40) | ticker / coin id |
-| asset_type | VARCHAR(20) | stock/etf/crypto/asset |
+| asset_type_cv_id | UUID FK code_value | list_key `asset_type` |
 | quantity | NUMERIC(24,8) | |
 | entry_value | NUMERIC(18,4) | user input at entry |
 | entry_date | DATE | |
@@ -370,7 +445,7 @@ Base columns +:
 | holding_id | UUID FK investment_holding | |
 | as_of_date | DATE | |
 | value | NUMERIC(18,4) | |
-| source | VARCHAR(20) | manual/api |
+| source_cv_id | UUID FK code_value | list_key `valuation_source` |
 | created_by | UUID FK app_user | |
 | created_at | TIMESTAMPTZ | |
 | UNIQUE(holding_id, as_of_date) | | |
@@ -397,7 +472,7 @@ Base columns +:
 | budget_id | UUID FK budget | |
 | cash_flow_item_id | UUID FK cash_flow_item NULL | selectable recurring items |
 | expense_category_id | UUID FK expense_category NULL | category-level line |
-| direction | VARCHAR(6) | income/expense |
+| direction_cv_id | UUID FK code_value | list_key `flow_type` (income/expense) |
 | expected_amount | NUMERIC(18,4) | |
 
 ### budget_actual_snapshot  (optional cache)
@@ -420,7 +495,7 @@ Base columns +:
 | original_filename | VARCHAR(300) | as uploaded |
 | storage_key | VARCHAR(400) | MinIO object key |
 | mime | VARCHAR(120) | |
-| status | VARCHAR(20) | uploaded/parsed/previewed/committed/failed |
+| status_cv_id | UUID FK code_value | list_key `import_status` |
 | uploaded_by | UUID FK app_user | |
 | uploaded_at | TIMESTAMPTZ | |
 | parse_summary | JSONB | row counts, warnings |
@@ -433,7 +508,7 @@ Base columns +:
 | import_id | UUID FK document_import | |
 | raw_data | JSONB | extracted fields |
 | mapped_values | JSONB | proposed partner/category/etc. |
-| mapping_status | VARCHAR(12) | matched/new/unmapped |
+| mapping_status_cv_id | UUID FK code_value | list_key `mapping_status` |
 | dedup_hash | VARCHAR(64) | date+amount+partner hash |
 | target_txn_id | UUID FK transaction NULL | set on commit |
 
@@ -484,11 +559,11 @@ Base columns (name + color in description/params).
 |---|---|---|
 | uuid | UUID PK | |
 | user_id | UUID FK app_user | |
-| type | VARCHAR(40) | recurring_due/budget_overrun/installment_due/... |
+| type_cv_id | UUID FK code_value | list_key `notification_type` |
 | subject | VARCHAR(200) | |
 | body | TEXT | |
-| channel | VARCHAR(12) | in_app/email |
-| status | VARCHAR(12) | pending/sent/read |
+| channel_cv_id | UUID FK code_value | list_key `notification_channel` |
+| status_cv_id | UUID FK code_value | list_key `notification_status` |
 | related_entity_type | VARCHAR(60) NULL | |
 | related_entity_uuid | UUID NULL | |
 | scheduled_for | TIMESTAMPTZ NULL | |
@@ -517,6 +592,7 @@ The SQL console connects with a **read-only role** limited to these views, with
   `transaction(partner_id)`, `transaction(beneficiary_id)`, `transaction(transfer_group_id)`.
 - `currency_rate(base_ccy, quote_ccy, rate_date)` for closest-date lookup.
 - `valuation_history(holding_id, as_of_date)`.
-- `event_outbox(status)` for the publisher loop.
+- `event_outbox(status_cv_id)` for the publisher loop.
+- `code_value(code_list_id, is_active)` for value-help lookups.
 - `entity_tag(entity_type, entity_uuid)`, `attachment(entity_type, entity_uuid)`.
 - Partial indexes excluding soft-deleted rows (`WHERE deleted_at IS NULL`).

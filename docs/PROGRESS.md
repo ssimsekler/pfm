@@ -38,7 +38,7 @@
   - [x] `.gitignore`, `README.md`, `LICENSE`, `.dockerignore` files
   - [x] git init, first commit, attempt push to remote
   - [ ] PAUSE for user review
-- [ ] **Phase 1 — Data & platform core** (models, migrations, base mixin, id-sequence, outbox+audit, Keycloak/RBAC)
+- [ ] **Phase 1 — Data & platform core** (models, migrations, base mixin, id-sequence, outbox+audit, Keycloak/RBAC, code_list/code_value + seed system code lists, value-help endpoints)
 - [ ] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup)
 - [ ] **Phase 3 — Recurrence, installments, loans, goals, income**
 - [ ] **Phase 4 — Integrations & automation** (connector framework, FX/stock/crypto, LLM Gateway, rules engine, valuation refresh)
@@ -53,3 +53,4 @@
 - Remote: `https://github.com/ssimsekler/pfm.git`. If push fails (auth/network), keep committing locally.
 - Confirmation dialogs (T.9) are UI-only.
 - Each phase must end in a runnable, committed increment.
+- All enumerated value sets are `code_value` FK columns (`*_cv_id`) driven by `code_list` (Decision #23); Phase 1 seeds the system lists and exposes a value-help endpoint.

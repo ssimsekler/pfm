@@ -26,3 +26,4 @@ Chronological log of key decisions. Newest decisions appended at the bottom.
 | 20 | Notifications: in-app always; email when SMTP configured | User choice; graceful degradation. |
 | 21 | Soft delete for financial records; audit_log with before/after; correlation to CloudEvent id | Auditability & recoverability. |
 | 22 | Commit continuously; attempt push to remote; if push fails, keep committing locally | User instruction. |
+| 23 | All enumerated value sets are configurable entities (`code_list` + `code_value`); every former enum column becomes a `*_cv_id` FK to `code_value` constrained to a specific `list_key` | Drives value helps/comboboxes and server-side validation; lets users extend value sets. System lists seeded with predefined values. Structural `level` fields excepted. |
