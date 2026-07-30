@@ -37,9 +37,13 @@
     - DONE: **installment/loan payment tracking** (#15/#16) [ADR #53] — `POST …/schedule/{sid}/pay`
       on installment-plans (marks paid) and loans (principal+interest); frontend `ScheduleDialog`
       (generate schedule + record payments, paid indicator) via a "Schedule & payments" row action
-      on the Loans and Installments lists. Frontend builds; backend compiles clean.
-    - TODO: investment valuation history UI (#18); recurring items UI (#19); transfers dialog (A.5);
-      auth: admin user + Users admin + password fallback (#14); in-app Help/Wiki (A.2).
+      on the Loans and Installments lists.
+    - DONE: **investment valuation history UI** (#18) [ADR #54] — frontend `ValuationDialog`
+      (trend line chart + history table + manual add + refresh-from-source) via a "Valuation
+      history" row action on Investments, over the existing valuations endpoints. Frontend builds
+      (deps reinstalled: `node_modules` had been cleared); backend compiles clean.
+    - TODO: recurring items UI (#19); transfers dialog (A.5); auth: admin user + Users admin +
+      password fallback (#14); in-app Help/Wiki (A.2).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a

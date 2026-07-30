@@ -4,8 +4,10 @@
 import { useState } from "react";
 import { Typography } from "@mui/material";
 import EventNoteIcon from "@mui/icons-material/EventNote";
+import ShowChartIcon from "@mui/icons-material/ShowChart";
 import EntityManager from "../components/EntityManager";
 import ScheduleDialog from "../components/ScheduleDialog";
+import ValuationDialog from "../components/ValuationDialog";
 import { ENTITIES } from "../entities";
 
 const SCHEDULE_KIND = {
@@ -16,26 +18,39 @@ const SCHEDULE_KIND = {
 export default function EntityList({ entity }) {
   const cfg = ENTITIES[entity];
   const [scheduleRow, setScheduleRow] = useState(null);
+  const [valuationRow, setValuationRow] = useState(null);
   if (!cfg) {
     return <Typography>Unknown entity: {entity}</Typography>;
   }
 
   const kind = SCHEDULE_KIND[entity];
-  const rowActions = kind
-    ? [
-        {
-          icon: <EventNoteIcon fontSize="small" />,
-          tooltip: "Schedule & payments",
-          onClick: (row) => setScheduleRow(row),
-        },
-      ]
-    : undefined;
+  let rowActions;
+  if (kind) {
+    rowActions = [
+      {
+        icon: <EventNoteIcon fontSize="small" />,
+        tooltip: "Schedule & payments",
+        onClick: (row) => setScheduleRow(row),
+      },
+    ];
+  } else if (entity === "investments") {
+    rowActions = [
+      {
+        icon: <ShowChartIcon fontSize="small" />,
+        tooltip: "Valuation history",
+        onClick: (row) => setValuationRow(row),
+      },
+    ];
+  }
 
   return (
     <>
       <EntityManager entity={entity} cfg={cfg} rowActions={rowActions} />
       {scheduleRow ? (
         <ScheduleDialog record={scheduleRow} kind={kind} onClose={() => setScheduleRow(null)} />
+      ) : null}
+      {valuationRow ? (
+        <ValuationDialog record={valuationRow} onClose={() => setValuationRow(null)} />
       ) : null}
     </>
   );
