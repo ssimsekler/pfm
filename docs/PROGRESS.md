@@ -44,9 +44,10 @@
     - DONE: **recurring cash-flow items UI** (#19) [ADR #55] — new **Recurring** page (Planning nav)
       lists pending occurrences (`GET /v1/recurring/pending?until=`) and materializes them via
       `MaterializeDialog`; `recurrence-profiles` now a managed entity (Configuration) and
-      `cash-flow-items` gained a `recurrence_profile_id` field. Frontend builds.
-    - TODO: transfers dialog (A.5); auth: admin user + Users admin + password fallback (#14);
-      in-app Help/Wiki (A.2).
+      `cash-flow-items` gained a `recurrence_profile_id` field.
+    - DONE: **transfers dialog** (A.5) [ADR #56] — `TransferDialog` ("New Transfer" on Transactions)
+      posts to `POST /v1/transfers` (dual-leg + transfer_group), cross-currency aware. Frontend builds.
+    - TODO: auth — default admin user + Users admin + password fallback (#14); in-app Help/Wiki (A.2).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a
