@@ -113,6 +113,7 @@ list's active values for comboboxes; the API validates the submitted value again
 | `audit_operation` | create, update, delete, restore | audit_log.operation |
 | `source_channel` | ui, api, import, job | audit_log.source_channel |
 | `config_value_type` | bool, string, int, json | app_config.value_type |
+| `institution_type` | bank, broker, card_issuer, exchange, other | institution.institution_type |
 
 > Note: hierarchy **level** fields (beneficiary 1–2, expense_category 1–3) remain integer
 > constraints, not code lists, since they are structural. Reporting `v_*` views may resolve
@@ -174,6 +175,30 @@ Base columns. Seeded: Owner, Editor, Viewer.
 | pad_width | SMALLINT | e.g. 10 for TRN, 5 for PRT |
 | current_seq | BIGINT | last used number; resets when a new prefix defined |
 | updated_at | TIMESTAMPTZ | |
+
+### country  (configurable reference entity)
+Base columns +:
+| Column | Type | Notes |
+|---|---|---|
+| iso2 | CHAR(2) UNIQUE | ISO 3166-1 alpha-2 (e.g. `AE`, `US`) |
+| iso3 | CHAR(3) UNIQUE | ISO 3166-1 alpha-3 (e.g. `ARE`, `USA`) |
+| default_currency | CHAR(3) FK currency NULL | convenience default |
+| mnemonic_id | `CTY-00001` | |
+
+> Seeded with the common ISO country set; user-editable.
+
+### institution  (configurable entity — banks/brokers/issuers)
+Base columns +:
+| Column | Type | Notes |
+|---|---|---|
+| country_id | UUID FK country | institution's country |
+| institution_type_cv_id | UUID FK code_value NULL | list_key `institution_type` (bank/broker/card_issuer/exchange/other) |
+| swift_bic | VARCHAR(11) NULL | optional |
+| website | VARCHAR(300) NULL | optional |
+| mnemonic_id | `INST-00001` | |
+
+> Accounts reference an institution via `account.institution_id` (replaces the old free-text
+> `institution` field). Value help / combobox lists active institutions, filterable by country.
 
 ### llm_provider
 Base columns +:
@@ -288,7 +313,7 @@ Base columns +:
 | currency | CHAR(3) FK currency | |
 | opening_balance | NUMERIC(18,4) | |
 | opening_balance_date | DATE | |
-| institution | VARCHAR(120) | |
+| institution_id | UUID FK institution NULL | configurable institution (with country) |
 | is_active | BOOLEAN | |
 
 ### partner
