@@ -5,28 +5,25 @@
 
 ## Current status
 
-- **Active phase:** Phase 4 — Integrations & automation (COMPLETE) → next: Phase 5
-- **Last completed (Phase 4):** models (`models/automation.py`): llm_provider, feature_llm_binding,
-  integration_endpoint, categorization_rule, investment_holding, valuation_history;
-  **connector framework** (`services/connectors.py`: FX Frankfurter, crypto CoinGecko, stock Yahoo;
-  endpoint resolved from `integration_endpoint` registry with public defaults — Decision #18);
-  **LLM Gateway** (`services/llm_gateway.py`: master switch, per-feature primary→secondary
-  failover, PII redaction, graceful None → placeholder, Ollama generation — Decision #19);
-  **rules engine** (`services/rules.py`); **valuation refresh** (`services/valuation.py`:
-  price → cache + valuation_history, source of truth — 5.2); CRUD routers for llm-providers,
-  feature-llm-bindings, integration-endpoints, categorization-rules, investments (+ `/refresh-valuation`,
-  `/valuations` GET/POST); **FX refresh** `POST /api/v1/fx/refresh` (pulls a rate, closes the open
-  period, opens a new open-ended one — Decision #26). Seeder now seeds a default **Ollama provider**
-  (Decision #24) and default FX/stock/crypto **integration endpoints**. All 42 backend files pass
-  syntax check.
-- **Next step:** Begin **Phase 5 — Import pipeline**: document_import(+row) models; upload
-  (pdf/csv/xlsx) to MinIO; parse (pdfplumber/pandas+openpyxl); LLM/rule-assisted mapping to
-  partners/categories with matched/new/unmapped status; preview → commit (create transactions,
-  dedup hash, note with original filename — spec 3.1–3.3); reuse LLM Gateway + rules engine.
+- **Active phase:** Phase 5 — Import pipeline (COMPLETE) → next: Phase 6
+- **Last completed (Phase 5):** models (`models/imports.py`): document_import (+ row); **parser**
+  (`services/import_parser.py`: CSV/XLSX/PDF via pdfplumber+openpyxl, header→canonical field
+  detection for date/amount/description/partner/currency, tolerant date/amount parsing);
+  **mapper** (`services/import_mapper.py`: rules-engine + partner/category name match →
+  matched/new/unmapped; dedup hash); **import API** (`api/imports.py`): `POST /imports`
+  (upload→MinIO→parse→map), `GET /imports`, `GET /imports/{id}`, `GET /imports/{id}/rows`
+  (validation screen), `PATCH /imports/{id}/rows/{rid}` (amend before commit),
+  `POST /imports/{id}/commit` (creates transactions, auto-creates kept-"new" partners, dedup skip,
+  note referencing original filename + `source_document_id` — spec 3.1–3.3). Requirements add
+  pandas/openpyxl/pdfplumber. Wired into `main.py`. All 46 backend files pass syntax check.
+- **Next step:** Begin **Phase 6 — Budgeting & reporting**: budget (+ budget_line) models & CRUD;
+  budget-vs-actual; recommendations (previous items + optional LLM); prebuilt reports
+  (category/beneficiary/partner volume, cash position history, net worth, projection) reading
+  reporting views converted to USD via FX; read-only **SQL console** (guarded role/timeout/LIMIT,
+  views only — Decision #10).
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET /api/docs`, `/api/v1/llm-providers`, `/api/v1/integration-endpoints`,
-  `POST /api/v1/fx/refresh {base_ccy:"AED",quote_ccy:"USD"}`,
-  `POST /api/v1/investments/{id}/refresh-valuation`.
+  `GET /api/docs`; upload a CSV to `POST /api/v1/imports`; review `GET /api/v1/imports/{id}/rows`;
+  `POST /api/v1/imports/{id}/commit {account_id, default_currency:"AED"}`.
 
 ## How to resume
 
@@ -53,7 +50,7 @@
 - [x] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup, country/institution/currency reference routers, first Alembic migration + FX no-overlap constraint)
 - [x] **Phase 3 — Recurrence, installments, loans, goals, income** (recurrence engine w/ business-day rules + holiday calendars; installment plans + schedule; loans + amortization; goals; pending-recurring + materialize-to-transaction; income via cash_flow_item.flow_type)
 - [x] **Phase 4 — Integrations & automation** (connector framework FX/stock/crypto, LLM Gateway w/ failover+redaction, rules engine, investment valuation refresh+history, FX refresh into validity periods, seeded Ollama provider + default endpoints)
-- [ ] **Phase 5 — Import pipeline** (pdf/csv/xlsx → mapping → preview → commit, dedup, filename note)
+- [x] **Phase 5 — Import pipeline** (pdf/csv/xlsx parse → rule/LLM-assisted mapping matched/new/unmapped → validation rows + amend → commit creating transactions with dedup + filename note + source_document_id)
 - [ ] **Phase 6 — Budgeting & reporting** (budgets, recommendations, variance, prebuilt reports, charts, SQL console)
 - [ ] **Phase 7 — Notifications & scheduler**
 - [ ] **Phase 8 — Frontend polish & UX**

@@ -46,3 +46,4 @@ from app.models.automation import (  # noqa: F401
     InvestmentHolding,
     ValuationHistory,
 )
+from app.models.imports import DocumentImport, DocumentImportRow  # noqa: F401
