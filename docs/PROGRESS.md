@@ -24,11 +24,16 @@
     Fixed card "snapping": Overview `Balances by Currency` (#12) and Export/Import cards (#9) now
     use a block flex-column container inside `BusyIndicator` with gaps. Code-list card is now
     scrollable with a sticky header (#7).
-  - **Batch C (TODO):** partner country + country-aware import mapping (#4); derived level
-    (#5); expense-category CSV seed (#8); loan category (#17); holiday calendar weekend/
-    week-start + day editor (A.1); loan/investment auto-create backing account (A.6);
-    app_config CRUD + Settings screen incl. LLM master switch (A.7); user profile (name/email/
-    date-time-number formats); entity-prefix (`id_sequence`) maintenance UI.
+  - **Batch C (PARTIAL):** DONE — fixed code-list key mismatches so all comboboxes populate
+    (the real cause of #11); **partner `country_id`** (#4, model+schema+form+filter); **loan
+    `loan_category`** code list + field (#17); **removed the manual Level field** from
+    beneficiary/expense-category forms (#5, derivation note shown); backend `filter_fields`
+    declared on generic entities; **additive `ADD COLUMN IF NOT EXISTS`** at startup so existing
+    DBs gain new columns. TODO (next pass): country-aware **import mapping** (#4); expense-
+    category **CSV seed** (#8); server-side **derived level** (#5); holiday calendar weekend/
+    week-start + day editor (A.1); loan/investment **auto-create backing account** (A.6);
+    **app_config CRUD + Settings screen** incl. LLM master switch (A.7); **user profile**
+    (name/email/date-time-number formats); entity-prefix (`id_sequence`) maintenance UI.
   - **Batch D (TODO):** reports + charts (#13); installment/loan payment tracking + txn link
     (#15/#16); investment valuation history (#18); recurring cash-flow items + profiles (#19);
     transfers dialog (A.5); auth: default admin user, Users admin, password fallback (#14);
