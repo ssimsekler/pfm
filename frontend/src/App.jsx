@@ -35,6 +35,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import DownloadIcon from "@mui/icons-material/Download";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import SettingsIcon from "@mui/icons-material/Settings";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 
 import { initAuth, getUser, login, logout } from "./auth";
 import Launchpad from "./pages/Launchpad";
@@ -48,6 +49,7 @@ import Imports from "./pages/Imports";
 import Notifications from "./pages/Notifications";
 import Configuration from "./pages/Configuration";
 import Settings from "./pages/Settings";
+import Help from "./pages/Help";
 import Export from "./pages/Export";
 
 const DRAWER_WIDTH = 250;
@@ -74,6 +76,7 @@ const SCREENS = {
   configuration: () => <Configuration />,
   settings: () => <Settings />,
   profile: () => <Settings section="profile" />,
+  help: () => <Help />,
   export: () => <Export />,
 };
 
@@ -114,6 +117,7 @@ const NAV = [
   { label: "Notifications", key: "notifications", icon: <NotificationsIcon /> },
   { label: "Configuration", key: "configuration", icon: <SettingsIcon /> },
   { label: "Settings", key: "settings", icon: <SettingsIcon /> },
+  { label: "Help", key: "help", icon: <HelpOutlineIcon /> },
 ];
 
 function Shell({ user }) {
