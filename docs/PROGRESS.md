@@ -66,3 +66,4 @@
 - `currency_rate` uses validity periods `begin_date`/`end_date` with GiST exclusion; FX lookup `begin_date <= date < end_date` (Decision #26) — Phase 2 FX service.
 - Reporting currency default **USD** (`APP_REPORTING_CURRENCY`), transactions native (mostly AED via `APP_DEFAULT_TXN_CURRENCY`); seed `app_config.default_base_currency=USD` (Decision #27). Imports always land on validation screen (Phase 5).
 - `country` and `institution` are configurable entities; `account.institution_id` FK; `institution_type` code list (Decision #28). Phase 1 creates tables + seeds ISO countries; Phase 2 wires account→institution value help.
+- **Data export** (Decision #29): `GET /api/v1/export/xlsx` (single multi-tab workbook download) and `POST /api/v1/export/to-folder` (one .xlsx per entity to a server folder); backend `services/export_data.py`, `api/export.py`; frontend `pages/Export.jsx` + nav item. Covers config + master + transactional data.

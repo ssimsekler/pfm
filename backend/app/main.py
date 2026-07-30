@@ -1,6 +1,6 @@
 """PFM FastAPI application entrypoint.
 
-Phase 1: DB bootstrap + seeding on startup, value-help router, readiness check.
+DB bootstrap + seeding on startup, all routers, readiness check.
 """
 
 from contextlib import asynccontextmanager
@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app import __version__
 from app.api.attachments_tags import ALL_ROUTERS as ATTACH_TAG_ROUTERS
 from app.api.automation import ALL_ROUTERS as AUTOMATION_ROUTERS
+from app.api.export import ALL_ROUTERS as EXPORT_ROUTERS
 from app.api.financial import ALL_ROUTERS as FINANCIAL_ROUTERS
 from app.api.imports import ALL_ROUTERS as IMPORT_ROUTERS
 from app.api.notifications import ALL_ROUTERS as NOTIFICATION_ROUTERS
@@ -50,6 +51,7 @@ for _router in [
     *IMPORT_ROUTERS,
     *REPORTING_ROUTERS,
     *NOTIFICATION_ROUTERS,
+    *EXPORT_ROUTERS,
     *ATTACH_TAG_ROUTERS,
 ]:
     app.include_router(_router)

@@ -21,24 +21,26 @@ import Reports from "./pages/Reports";
 import Imports from "./pages/Imports";
 import Notifications from "./pages/Notifications";
 import Configuration from "./pages/Configuration";
+import Export from "./pages/Export";
 
 const ROUTES = {
-  home: { label: "Overview", render: (nav) => <Launchpad navigate={nav} /> },
-  transactions: { label: "Transactions", render: () => <Transactions /> },
-  accounts: { label: "Accounts", render: () => <EntityList entity="accounts" /> },
-  partners: { label: "Partners", render: () => <EntityList entity="partners" /> },
-  beneficiaries: { label: "Beneficiaries", render: () => <EntityList entity="beneficiaries" /> },
-  "expense-categories": { label: "Categories", render: () => <EntityList entity="expense-categories" /> },
-  "cash-flow-items": { label: "Cash Flow Items", render: () => <EntityList entity="cash-flow-items" /> },
-  investments: { label: "Investments", render: () => <EntityList entity="investments" /> },
-  loans: { label: "Loans", render: () => <EntityList entity="loans" /> },
-  "installment-plans": { label: "Installments", render: () => <EntityList entity="installment-plans" /> },
-  goals: { label: "Goals", render: () => <EntityList entity="goals" /> },
-  budgets: { label: "Budgets", render: () => <EntityList entity="budgets" /> },
-  reports: { label: "Reports", render: () => <Reports /> },
-  imports: { label: "Imports", render: () => <Imports /> },
-  notifications: { label: "Notifications", render: () => <Notifications /> },
-  configuration: { label: "Configuration", render: () => <Configuration /> },
+  home: (nav) => <Launchpad navigate={nav} />,
+  transactions: () => <Transactions />,
+  accounts: () => <EntityList entity="accounts" />,
+  partners: () => <EntityList entity="partners" />,
+  beneficiaries: () => <EntityList entity="beneficiaries" />,
+  "expense-categories": () => <EntityList entity="expense-categories" />,
+  "cash-flow-items": () => <EntityList entity="cash-flow-items" />,
+  investments: () => <EntityList entity="investments" />,
+  loans: () => <EntityList entity="loans" />,
+  "installment-plans": () => <EntityList entity="installment-plans" />,
+  goals: () => <EntityList entity="goals" />,
+  budgets: () => <EntityList entity="budgets" />,
+  reports: () => <Reports />,
+  imports: () => <Imports />,
+  notifications: () => <Notifications />,
+  configuration: () => <Configuration />,
+  export: () => <Export />,
 };
 
 export default function App() {
@@ -65,19 +67,21 @@ export default function App() {
         showNotifications
         onNotificationsClick={() => nav("notifications")}
         profile={<Avatar icon="employee" />}
-        onProfileClick={(e) => { setProfileOpen(true); }}
+        onProfileClick={() => setProfileOpen(true)}
       >
         <ShellBarItem icon="home" text="Overview" onClick={() => nav("home")} />
-        <ShellBarItem icon="add-document" text="Import" onClick={() => nav("imports")} />
+        <ShellBarItem icon="excel-attachment" text="Export" onClick={() => nav("export")} />
       </ShellBar>
 
       <Popover open={profileOpen} onAfterClose={() => setProfileOpen(false)} headerText={user.name}>
-        <List onItemClick={(e) => {
-          const action = e.detail.item.dataset.action;
-          setProfileOpen(false);
-          if (action === "login") login();
-          if (action === "logout") logout();
-        }}>
+        <List
+          onItemClick={(e) => {
+            const action = e.detail.item.dataset.action;
+            setProfileOpen(false);
+            if (action === "login") login();
+            if (action === "logout") logout();
+          }}
+        >
           <StandardListItem data-action="login">Sign in</StandardListItem>
           <StandardListItem data-action="logout">Sign out</StandardListItem>
         </List>
@@ -111,12 +115,13 @@ export default function App() {
             <SideNavigationSubItem text="Reports" data-route="reports" selected={route === "reports"} />
           </SideNavigationItem>
           <SideNavigationItem text="Imports" icon="add-document" data-route="imports" selected={route === "imports"} />
+          <SideNavigationItem text="Export" icon="excel-attachment" data-route="export" selected={route === "export"} />
           <SideNavigationItem text="Notifications" icon="bell" data-route="notifications" selected={route === "notifications"} />
           <SideNavigationItem text="Configuration" icon="action-settings" data-route="configuration" selected={route === "configuration"} />
         </SideNavigation>
 
         <div style={{ flex: 1, overflow: "auto", padding: "1rem 1.5rem", background: "var(--sapBackgroundColor)" }}>
-          {ready ? (ROUTES[route]?.render(nav) ?? <div>Not found</div>) : <div>Loading…</div>}
+          {ready ? (ROUTES[route] ? ROUTES[route](nav) : <div>Not found</div>) : <div>Loading…</div>}
         </div>
       </FlexBox>
     </div>
