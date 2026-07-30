@@ -89,6 +89,12 @@ services:
     image: quay.io/keycloak/keycloak:25.0
     command: start-dev --import-realm --http-relative-path=/auth
     environment:
+      # Keycloak 25.x reads the legacy KEYCLOAK_ADMIN/KEYCLOAK_ADMIN_PASSWORD to
+      # create the initial master admin on first boot (the KC_BOOTSTRAP_ADMIN_*
+      # names are 26.x). We set both so it works across versions. The initial
+      # admin is only created when the master realm doesn't yet exist.
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_DB: postgres
