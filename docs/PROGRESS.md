@@ -5,20 +5,21 @@
 
 ## Current status
 
-- **Active phase:** Phase 1 — Data & platform core (IN PROGRESS)
-- **Last completed (Phase 1 so far):** app config (`core/config.py`), DB session + declarative
-  base bound to `pfm` schema (`core/database.py`), base entity mixin (`models/base.py`),
-  meta models (app_config, id_sequence, code_list, code_value, event_outbox, audit_log),
-  security models (household, app_user, role, user_role), reference models (currency, country,
-  institution), id-sequence service, events (CloudEvents outbox) + audit services, seed data
-  (23 code lists, currencies, countries, roles, app_config), idempotent seeder, Alembic scaffold
-  (alembic.ini + env.py schema-aware), startup bootstrap (create schema/tables + seed),
-  value-help API (`/api/v1/code-lists`, `/api/v1/code-lists/{list_key}/values`), DB-backed
-  readiness probe. All 20 backend files pass syntax check.
-- **Next step (Phase 1 remaining):** Keycloak OIDC auth middleware + RBAC dependency;
-  generic CRUD/repository base with search/filter/sort/pagination; wire seeded default
-  Ollama `llm_provider`. Then generate the first real Alembic migration to replace
-  create_all. Then proceed to Phase 2 (core financial entities).
+- **Active phase:** Phase 1 — Data & platform core (COMPLETE) → next: Phase 2
+- **Last completed (Phase 1):** app config, DB session + declarative base (`pfm` schema),
+  base entity mixin, meta models (app_config, id_sequence, code_list/value, event_outbox,
+  audit_log), security models (household, app_user, role, user_role), reference models
+  (currency, country, institution), id-sequence service, CloudEvents outbox + audit services,
+  seed data (23 code lists + currencies + countries + roles + app_config), idempotent seeder,
+  Alembic scaffold, startup bootstrap, value-help API, DB-backed readiness probe,
+  **Keycloak OIDC auth + RBAC** (`core/security.py`, dev-friendly fallback + `require_write`),
+  and a **generic Repository** with search/filter/sort/pagination + soft delete + audit + events
+  (`services/repository.py`). All 22 backend files pass syntax check.
+- **Next step:** Begin **Phase 2 — Core financial APIs**: models for account, partner,
+  beneficiary, expense_category, cash_flow_item, transaction (+split), transfer_group,
+  currency_rate (validity periods), tag/entity_tag, attachment; Pydantic schemas; CRUD routers
+  built on `Repository` with search/filter; the FX validity-period lookup service; transfers
+  (dual-leg). Then replace create_all with a generated Alembic migration.
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
   `GET http://localhost/api/ready` (db ok) and `GET http://localhost/api/v1/code-lists`.
 
@@ -43,8 +44,7 @@
   - [x] React + Vite + UI5 Web Components scaffold
   - [x] `.gitignore`, `README.md`, `LICENSE`, `.dockerignore` files
   - [x] git init, first commit, attempt push to remote
-  - [ ] PAUSE for user review
-- [ ] **Phase 1 — Data & platform core** (models, migrations, base mixin, id-sequence, outbox+audit, Keycloak/RBAC, code_list/code_value + seed system code lists, value-help endpoints)
+- [x] **Phase 1 — Data & platform core** (models, base mixin, id-sequence, outbox+audit, Keycloak/RBAC, code_list/code_value + seed system code lists, value-help endpoints, generic Repository with search/filter/sort/pagination; Alembic scaffolded — first real migration pending in Phase 2)
 - [ ] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup)
 - [ ] **Phase 3 — Recurrence, installments, loans, goals, income**
 - [ ] **Phase 4 — Integrations & automation** (connector framework, FX/stock/crypto, LLM Gateway, rules engine, valuation refresh)
