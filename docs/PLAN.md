@@ -66,10 +66,18 @@ Key policies:
 - **Policy 1 (category inheritance):** item-linked transactions inherit category from the
   expense item; category-split disallowed on item-linked transactions.
 - **Cash flow item:** income & expense unified in one table with `flow_type` flag.
+- **FX validity periods:** `currency_rate` has `begin_date`/`end_date`; lookup uses
+  `begin_date <= date < end_date` (open-ended `9999-12-31`) — Decision #26.
+- **Reporting currency:** transactions are native (mostly AED); reports/roll-ups compute in a
+  configurable reporting currency (default **USD**) — Decision #27.
+- **Search/filter:** every list endpoint & screen supports search, filter, sort, pagination —
+  Decision #25.
 
 ## 6. API Surface (OpenAPI / T.8)
 
-- CRUD for all entities: `/api/v1/{entity}` with filter/sort/pagination.
+- CRUD for all entities: `/api/v1/{entity}` with **free-text search + structured filters +
+  sort + pagination** on every list endpoint (transactions, partners, beneficiaries,
+  categories, etc.) — Decision #25.
 - Complex ops: transfers; import prepare→parse→preview→commit; recurrence pending/materialize;
   fx refresh/import; valuation refresh; reports run; reports sql (guarded); budget recommendations;
   projection.

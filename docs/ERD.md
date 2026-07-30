@@ -22,6 +22,33 @@ PostgreSQL. All tables carry the **Base columns** unless noted. Types are Postgr
 
 ---
 
+## Search & filtering (cross-cutting)
+
+Every list screen and its backing `GET /api/v1/{entity}` endpoint supports **search and
+filtering** (Decision #25):
+
+- **Free-text search** on `name`, `mnemonic_id`, `description`, and entity-relevant text
+  (e.g. transaction `note`, partner name). Backed by trigram (`pg_trgm`) indexes.
+- **Structured filters** per attribute: exact match, ranges (dates/amounts), multi-select
+  for code-list fields (via `*_cv_id`), and relation filters (e.g. transactions by account,
+  partner, beneficiary, category level 1–3, tag, status, currency, date range, amount range).
+- **Sort** on any column; **pagination** (offset/limit + total count).
+- Filters map to Fiori **FilterBar** controls; the same query params drive the API.
+
+Applies to transactions, partners, beneficiaries, expense categories, cash-flow items,
+accounts, investments, budgets, installments, loans, imports, tags, etc.
+
+## Reporting currency
+
+Transactions are entered in their own currency (mostly AED). **Reports and roll-ups
+(cash position, projections, net worth, category/beneficiary/partner volumes) are computed
+in a configurable reporting currency (default USD)** — see `app_config.default_base_currency`
+(seeded `USD`) and per-user `app_user.base_currency`. Conversion uses the validity-period
+FX rate (`currency_rate`, `begin_date <= date < end_date`). Reports may also show per-currency
+subtotals alongside the reporting-currency total. (Decision #26.)
+
+---
+
 ## Configurable code lists (enumerated value sets)
 
 **Every enumerated value set is a configurable entity**, not a hard-coded enum. This drives
@@ -232,9 +259,18 @@ Base columns +:
 | base_ccy | CHAR(3) FK currency | |
 | quote_ccy | CHAR(3) FK currency | |
 | rate | NUMERIC(18,8) | |
-| rate_date | DATE | |
+| begin_date | DATE | validity start (inclusive) |
+| end_date | DATE | validity end (exclusive); open-ended entries use `9999-12-31` |
 | source_cv_id | UUID FK code_value | list_key `rate_source` |
-| UNIQUE(base_ccy, quote_ccy, rate_date) | | closest-date lookup by rate_date |
+| EXCLUDE overlapping [begin_date, end_date) per (base_ccy, quote_ccy) | | no overlaps (see note) |
+
+> **Validity-period lookup:** the FX service selects the rate where
+> `begin_date <= lookup_date < end_date` for the `(base_ccy, quote_ccy)` pair. Users maintain
+> contiguous, non-overlapping periods and keep an open-ended entry (`end_date = 9999-12-31`)
+> so a valid rate always exists. Overlap is prevented by a PostgreSQL exclusion constraint
+> (`btree_gist` on `base_ccy, quote_ccy` + `daterange(begin_date, end_date)`). If no period
+> matches (misconfiguration), the service falls back to the closest period and flags a warning.
+> CSV/XLSX uploads and the public-source pull populate these periods.
 
 ---
 
@@ -575,9 +611,10 @@ Base columns (name + color in description/params).
 ## Reporting views (read-only, for SQL console & prebuilt reports)
 
 - `v_transaction_enriched` — transaction joined with account, partner, beneficiary,
-  category (levels 1–3), item, tags, base-currency converted amount (closest-date FX).
+  category (levels 1–3), item, tags, and the **reporting-currency** converted amount using
+  the validity-period FX rate (`begin_date <= txn_date < end_date`).
 - `v_account_balance_daily` — daily running balance per account (for cash-position graph).
-- `v_networth_asof` — assets − liabilities per as-of date, per currency + base-currency total.
+- `v_networth_asof` — assets − liabilities per as-of date, per currency + reporting-currency total.
 - `v_budget_vs_actual` — budget lines vs. computed actuals.
 - `v_installment_status`, `v_loan_status` — outstanding vs. paid.
 
@@ -590,7 +627,8 @@ The SQL console connects with a **read-only role** limited to these views, with
 
 - `transaction(account_id, txn_date)`, `transaction(cash_flow_item_id)`,
   `transaction(partner_id)`, `transaction(beneficiary_id)`, `transaction(transfer_group_id)`.
-- `currency_rate(base_ccy, quote_ccy, rate_date)` for closest-date lookup.
+- `currency_rate` GiST exclusion on `(base_ccy, quote_ccy, daterange(begin_date, end_date))`
+  + btree on `(base_ccy, quote_ccy, begin_date)` for validity-period lookup.
 - `valuation_history(holding_id, as_of_date)`.
 - `event_outbox(status_cv_id)` for the publisher loop.
 - `code_value(code_list_id, is_active)` for value-help lookups.
