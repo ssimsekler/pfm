@@ -1,12 +1,25 @@
 """PFM FastAPI application entrypoint.
 
-Phase 0: minimal app with health/readiness endpoints so the container stack
-is verifiable end-to-end. Routers, auth, DB, and CRUD are added in Phase 1+.
+Phase 1: DB bootstrap + seeding on startup, value-help router, readiness check.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+from sqlalchemy import text
 
 from app import __version__
+from app.api.value_help import router as value_help_router
+from app.core.bootstrap import init_db
+from app.core.database import engine
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create schema/tables and seed system data on startup.
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="PFM API",
@@ -15,7 +28,10 @@ app = FastAPI(
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     root_path="",
+    lifespan=lifespan,
 )
+
+app.include_router(value_help_router)
 
 
 @app.get("/api/health", tags=["system"])
@@ -26,5 +42,10 @@ def health() -> dict:
 
 @app.get("/api/ready", tags=["system"])
 def ready() -> dict:
-    """Readiness probe. Extended in Phase 1 to check DB connectivity."""
-    return {"status": "ready"}
+    """Readiness probe — verifies DB connectivity."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ready", "db": "ok"}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "degraded", "db": f"error: {exc}"}

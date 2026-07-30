@@ -5,16 +5,22 @@
 
 ## Current status
 
-- **Active phase:** Phase 0 — Foundation (COMPLETE, pending user review)
-- **Last completed:** Full Phase 0 scaffold — docs (PLAN/ERD/DECISIONS/PROGRESS),
-  repo layout (`/backend`, `/frontend`, `/infra`), `docker-compose.yml`, `.env.example`,
-  Postgres init (schemas + read-only role), Keycloak realm import, minimal FastAPI
-  health app + worker placeholder, React + UI5 scaffold, `.gitignore`, `README`, `LICENSE`.
-- **Next step:** PAUSE for user review of Phase 0. On approval, begin **Phase 1**
-  (SQLAlchemy models + Alembic migrations for all entities, base mixin, id-sequence service,
-  transactional outbox + audit interceptor, Keycloak OIDC middleware + RBAC).
-- **Verify Phase 0:** `cd infra && cp .env.example .env && docker compose up -d --build`,
-  then check `http://localhost/api/health` and the SPA at `http://localhost/`.
+- **Active phase:** Phase 1 — Data & platform core (IN PROGRESS)
+- **Last completed (Phase 1 so far):** app config (`core/config.py`), DB session + declarative
+  base bound to `pfm` schema (`core/database.py`), base entity mixin (`models/base.py`),
+  meta models (app_config, id_sequence, code_list, code_value, event_outbox, audit_log),
+  security models (household, app_user, role, user_role), reference models (currency, country,
+  institution), id-sequence service, events (CloudEvents outbox) + audit services, seed data
+  (23 code lists, currencies, countries, roles, app_config), idempotent seeder, Alembic scaffold
+  (alembic.ini + env.py schema-aware), startup bootstrap (create schema/tables + seed),
+  value-help API (`/api/v1/code-lists`, `/api/v1/code-lists/{list_key}/values`), DB-backed
+  readiness probe. All 20 backend files pass syntax check.
+- **Next step (Phase 1 remaining):** Keycloak OIDC auth middleware + RBAC dependency;
+  generic CRUD/repository base with search/filter/sort/pagination; wire seeded default
+  Ollama `llm_provider`. Then generate the first real Alembic migration to replace
+  create_all. Then proceed to Phase 2 (core financial entities).
+- **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
+  `GET http://localhost/api/ready` (db ok) and `GET http://localhost/api/v1/code-lists`.
 
 ## How to resume
 
