@@ -13,6 +13,14 @@ import { api } from "../api";
 
 const COLORS = ["#0a3d62", "#1e88e5", "#2e7d32", "#ed6c02", "#8e24aa", "#00838f", "#c62828", "#5d4037"];
 
+// Round to 2 decimals with thousands separators for display.
+const money2 = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n)
+    ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : (v ?? "—");
+};
+
 function VolumePie({ title, path }) {
   const [data, setData] = useState([]);
   useEffect(() => {
@@ -114,9 +122,9 @@ function BudgetVsActual() {
               </ResponsiveContainer>
             </Box>
             <Stack direction="row" spacing={3} sx={{ mt: 1 }}>
-              <Typography variant="body2">Expected: {variance.total_expected}</Typography>
-              <Typography variant="body2">Actual: {variance.total_actual}</Typography>
-              <Typography variant="body2">Variance: {variance.total_variance} ({variance.reporting_currency})</Typography>
+              <Typography variant="body2">Expected: {money2(variance.total_expected)}</Typography>
+              <Typography variant="body2">Actual: {money2(variance.total_actual)}</Typography>
+              <Typography variant="body2">Variance: {money2(variance.total_variance)} ({variance.reporting_currency})</Typography>
             </Stack>
           </>
         ) : <Typography color="text.secondary">Pick a budget to see its variance.</Typography>}
@@ -160,16 +168,16 @@ export default function Reports() {
       {loading ? <CircularProgress /> : (
         <Grid container spacing={2} sx={{ mb: 1 }}>
           <Grid item xs={12} md={4}><VolumePie title="Volume by Category" path="/v1/reports/volume-by-category" /></Grid>
-          <Grid item xs={12} md={4}><VolumePie title="Volume by Supplier" path="/v1/reports/volume-by-partner" /></Grid>
+          <Grid item xs={12} md={4}><VolumePie title="Volume by Partner" path="/v1/reports/volume-by-partner" /></Grid>
           <Grid item xs={12} md={4}><VolumePie title="Volume by Beneficiary" path="/v1/reports/volume-by-beneficiary" /></Grid>
           <Grid item xs={12} md={4}>
             <Card sx={{ height: "100%" }}>
               <CardHeader title="Headline Figures" />
               <CardContent>
                 <Stack spacing={1}>
-                  <Stack direction="row" justifyContent="space-between"><Typography>Cash ({cash?.reporting_currency})</Typography><Typography>{cash?.total_reporting ?? "—"}</Typography></Stack>
-                  <Stack direction="row" justifyContent="space-between"><Typography>Investments</Typography><Typography>{worth?.investments ?? "—"}</Typography></Stack>
-                  <Stack direction="row" justifyContent="space-between"><Typography>Net worth</Typography><Typography>{worth?.net_worth ?? "—"}</Typography></Stack>
+                  <Stack direction="row" justifyContent="space-between"><Typography>Cash ({cash?.reporting_currency})</Typography><Typography>{money2(cash?.total_reporting)}</Typography></Stack>
+                  <Stack direction="row" justifyContent="space-between"><Typography>Investments</Typography><Typography>{money2(worth?.investments)}</Typography></Stack>
+                  <Stack direction="row" justifyContent="space-between"><Typography>Net worth</Typography><Typography>{money2(worth?.net_worth)}</Typography></Stack>
                 </Stack>
               </CardContent>
             </Card>

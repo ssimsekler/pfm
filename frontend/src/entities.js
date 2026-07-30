@@ -93,7 +93,7 @@ export const ENTITIES = {
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
       { key: "currency", label: "Currency" },
-      { key: "opening_balance", label: "Opening Balance" },
+      { key: "opening_balance", label: "Opening Balance", money: true },
       { key: "is_active", label: "Active" },
     ],
     fields: [
@@ -169,7 +169,7 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
-      { key: "expected_amount", label: "Expected" },
+      { key: "expected_amount", label: "Expected", money: true },
       { key: "currency", label: "Currency" },
     ],
     fields: [
@@ -191,7 +191,7 @@ export const ENTITIES = {
       { key: "name", label: "Name" },
       { key: "symbol", label: "Symbol" },
       { key: "quantity", label: "Quantity" },
-      { key: "current_value_cache", label: "Current Value" },
+      { key: "current_value_cache", label: "Current Value", money: true },
       { key: "currency", label: "Currency" },
     ],
     fields: [
@@ -213,7 +213,7 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
-      { key: "principal", label: "Principal" },
+      { key: "principal", label: "Principal", money: true },
       { key: "interest_rate", label: "Rate %" },
       { key: "term_months", label: "Term (mo)" },
       { key: "currency", label: "Currency" },
@@ -237,7 +237,7 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
-      { key: "total_amount", label: "Total" },
+      { key: "total_amount", label: "Total", money: true },
       { key: "installment_count", label: "Count" },
       { key: "currency", label: "Currency" },
     ],
@@ -260,7 +260,7 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
-      { key: "target_amount", label: "Target" },
+      { key: "target_amount", label: "Target", money: true },
       { key: "target_date", label: "Target Date" },
       { key: "currency", label: "Currency" },
     ],
@@ -311,7 +311,7 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "txn_date", label: "Date" },
-      { key: "amount", label: "Amount" },
+      { key: "amount", label: "Amount", money: true },
       { key: "currency", label: "Currency" },
       { key: "is_split", label: "Split" },
       { key: "mnemonic_id", label: "ID" },
@@ -319,14 +319,18 @@ export const ENTITIES = {
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "account_id", label: "Account", type: "ref", refEntity: "accounts", required: true },
+      // Read-only link shown when the transaction was created from a cash-flow item
+      // (Policy 1). Always disabled — set only via the item's "Create transaction" action.
+      { name: "cash_flow_item_id", label: "Cash Flow Item", type: "ref", refEntity: "cash-flow-items", disabled: true, help: "Set when created from a cash-flow item; category & direction are inherited and locked (Policy 1)." },
       { name: "txn_date", label: "Transaction Date", type: "date", required: true },
       { name: "booking_date", label: "Booking Date", type: "date" },
       { name: "amount", label: "Amount", type: "number", required: true },
       { ...CURRENCY_FIELD, required: true },
-      { name: "direction_cv_id", label: "Direction", type: "codeValue", listKey: "txn_direction" },
+      // Category & direction are locked when a cash-flow item is linked (Policy 1).
+      { name: "direction_cv_id", label: "Direction", type: "codeValue", listKey: "txn_direction", required: true, lockWhenItemLinked: true },
       { name: "partner_id", label: "Partner", type: "ref", refEntity: "partners" },
       { name: "beneficiary_id", label: "Beneficiary", type: "ref", refEntity: "beneficiaries" },
-      { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories" },
+      { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories", lockWhenItemLinked: true },
       { name: "status_cv_id", label: "Status", type: "codeValue", listKey: "txn_status" },
       { name: "note", label: "Note", type: "textarea" },
     ],

@@ -56,6 +56,13 @@
       (`/v1/auth/password-login`); frontend **Users** screen, **"Sign in with password"** dialog,
       and a fallback token in `auth.js`. Frontend builds; backend compiles clean.
     - **Phase 11 Round 2 backlog is now COMPLETE.** Remaining is optional polish only (below).
+    - **UX fix pass (post-feedback) [ADR #59]:** materialize sets txn direction from the item's
+      flow_type; transaction form shows a **disabled Cash Flow Item** field and **locks + inherits
+      category/direction** when item-linked; **direction is mandatory**; fixed the splits PUT for
+      plain transactions ("put is not a function"); SplitEditor hides Total/Remaining when empty;
+      **all money values render at 2 decimals** (DataGrid `money` columns + Reports `money2`);
+      "Volume by Supplier" → **"Volume by Partner"**; **Keycloak admin console** exposed
+      (`/auth/admin` via proxy, and direct `:8082`).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a
@@ -163,6 +170,10 @@
 - DB admin GUIs (ADR #30, dev utilities): **Adminer** at `:8081` and the MinIO console at
   `:9001` (pgAdmin was removed to reduce image footprint). Connect to Postgres via host `db`,
   port `5432`.
+- **Keycloak admin console** (dev utility, ADR #59): `http://localhost/auth/admin` (via the proxy)
+  or `http://localhost:8082/auth/admin` (direct). Log in with `KEYCLOAK_ADMIN` /
+  `KEYCLOAK_ADMIN_PASSWORD` from `.env`. A default realm **admin** user (pwd `admin`, Owner) is
+  seeded for first app login — change it here for any real use.
 - Reverse proxy uses Traefik's **file provider** (`infra/traefik/dynamic.yml`) instead of the
   Docker provider, because Docker Desktop's mounted socket returned HTTP 400 to the Docker API.
 - Frontend pins **`@ui5/webcomponents*` v1.x** (source uses the v1 component API); Dockerfile

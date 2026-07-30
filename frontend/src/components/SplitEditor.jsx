@@ -82,12 +82,14 @@ export default function SplitEditor({ amount, rows, onChange, disabled }) {
         </Table>
       )}
 
-      <Stack direction="row" justifyContent="flex-end" spacing={3} sx={{ mt: 1 }}>
-        <Typography variant="body2">Total: {total.toFixed(2)}</Typography>
-        <Typography variant="body2" color={balanced ? "success.main" : "error.main"}>
-          Remaining: {remaining.toFixed(2)}
-        </Typography>
-      </Stack>
+      {rows.length > 0 ? (
+        <Stack direction="row" justifyContent="flex-end" spacing={3} sx={{ mt: 1 }}>
+          <Typography variant="body2">Total: {total.toFixed(2)}</Typography>
+          <Typography variant="body2" color={balanced ? "success.main" : "error.main"}>
+            Remaining: {remaining.toFixed(2)}
+          </Typography>
+        </Stack>
+      ) : null}
 
       {!balanced && rows.length > 0 ? (
         <Alert severity="warning" sx={{ mt: 1 }}>

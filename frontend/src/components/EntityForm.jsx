@@ -105,12 +105,21 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
 
   const setSplitsDirty = (rows) => { setDirty(true); setSplits(rows); };
 
+  // A transaction is "item-linked" (Policy 1) when it carries a cash_flow_item_id.
+  const itemLinked = useMemo(
+    () => cfg.hasSplits && Boolean(values.cash_flow_item_id),
+    [cfg.hasSplits, values.cash_flow_item_id]
+  );
+
+  const isDisabled = (f) => Boolean(f.disabled) || (f.lockWhenItemLinked && itemLinked);
+
   const renderField = (f) => {
     const val = values[f.name];
+    const disabled = isDisabled(f);
     if (f.type === "boolean") {
       return (
         <FormControlLabel
-          control={<Switch checked={Boolean(val)} onChange={(e) => setField(f.name, e.target.checked)} />}
+          control={<Switch checked={Boolean(val)} disabled={disabled} onChange={(e) => setField(f.name, e.target.checked)} />}
           label={f.label}
         />
       );
@@ -118,7 +127,7 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
     if (f.type === "textarea" || f.type === "json") {
       return (
         <TextField label={f.label} value={val ?? ""} onChange={(e) => setField(f.name, e.target.value)}
-          fullWidth size="small" multiline minRows={f.type === "json" ? 4 : 2} required={f.required} />
+          fullWidth size="small" multiline minRows={f.type === "json" ? 4 : 2} required={f.required} disabled={disabled} />
       );
     }
     if (f.type === "date") {
@@ -126,6 +135,7 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
         <DatePicker
           label={f.label}
           value={val ? dayjs(val) : null}
+          disabled={disabled}
           onChange={(d) => setField(f.name, d ? d.format("YYYY-MM-DD") : "")}
           slotProps={{ textField: { size: "small", fullWidth: true, required: f.required } }}
         />
@@ -134,19 +144,19 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
     if (f.type === "number") {
       return (
         <TextField label={f.label} type="number" value={val ?? ""} onChange={(e) => setField(f.name, e.target.value)}
-          fullWidth size="small" required={f.required} />
+          fullWidth size="small" required={f.required} disabled={disabled} />
       );
     }
     if (f.type === "codeValue" || f.type === "ref") {
       const exclude = f.refEntity === entity ? selfExclude : undefined;
       return (
         <ComboField field={f} value={val} onChange={(v) => setField(f.name, v)}
-          label={f.label} required={f.required} exclude={exclude} refreshToken={refreshToken} />
+          label={f.label} required={f.required} exclude={exclude} refreshToken={refreshToken} disabled={disabled} />
       );
     }
     return (
       <TextField label={f.label} value={val ?? ""} onChange={(e) => setField(f.name, e.target.value)}
-        fullWidth size="small" required={f.required} />
+        fullWidth size="small" required={f.required} disabled={disabled} />
     );
   };
 
@@ -191,12 +201,16 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
       let saved;
       if (isEdit) saved = await api.patch(`${cfg.path}/${record[idField]}`, payload);
       else saved = await api.post(cfg.path, payload);
+      // Only sync splits when the editor is enabled AND there is something to
+      // write (or we're clearing an edit that previously had splits). Avoids an
+      // unnecessary PUT for plain transactions.
       if (cfg.hasSplits && !splitsDisabled) {
-        const txnId = (saved && saved[idField]) || record?.[idField];
-        if (txnId) {
-          const clean = splits.filter((r) => r.expense_category_id && r.amount !== "")
-            .map((r) => ({ expense_category_id: r.expense_category_id, beneficiary_id: r.beneficiary_id || null, amount: Number(r.amount) }));
-          await api.put(`${cfg.path}/${txnId}/splits`, { splits: clean });
+        const clean = splits.filter((r) => r.expense_category_id && r.amount !== "")
+          .map((r) => ({ expense_category_id: r.expense_category_id, beneficiary_id: r.beneficiary_id || null, amount: Number(r.amount) }));
+        const hadSplits = Boolean(record?.is_split);
+        if (clean.length > 0 || hadSplits) {
+          const txnId = (saved && saved[idField]) || record?.[idField];
+          if (txnId) await api.put(`${cfg.path}/${txnId}/splits`, { splits: clean });
         }
       }
       // Invalidate this entity's option cache so other forms see the new record (#3).

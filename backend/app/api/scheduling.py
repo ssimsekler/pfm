@@ -554,6 +554,15 @@ def materialize(
     ).scalars()
     next_seq = (max([s for s in existing_seqs if s is not None], default=0)) + 1
 
+    # Derive txn direction from the item's flow_type: income→credit, expense→debit.
+    direction_cv_id = None
+    if item.flow_type_cv_id is not None:
+        flow_cv = db.get(CodeValue, item.flow_type_cv_id)
+        if flow_cv is not None:
+            direction_cv_id = _status_cv(
+                db, "txn_direction", "credit" if flow_cv.code == "income" else "debit"
+            )
+
     data = {
         "name": item.name,
         "account_id": payload.account_id,
@@ -563,6 +572,7 @@ def materialize(
         "cash_flow_item_id": item.uuid,
         "expense_item_seq_no": next_seq,
         "expense_category_id": item.expense_category_id,  # Policy 1 inheritance
+        "direction_cv_id": direction_cv_id,  # inherited from flow_type
         "is_split": False,
         "note": f"Materialized from recurring item {item.mnemonic_id}",
     }

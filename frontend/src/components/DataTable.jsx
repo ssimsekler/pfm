@@ -12,6 +12,14 @@ function fmtCell(v) {
   return v;
 }
 
+// Format a monetary value to exactly 2 decimals with thousands separators.
+function fmtMoney(v) {
+  if (v === null || v === undefined || v === "") return "";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return v;
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function DataTable({
   path,
   columns,
@@ -60,7 +68,9 @@ export default function DataTable({
       flex: 1,
       minWidth: 120,
       sortable: true,
-      valueGetter: c.render ? undefined : (value, row) => fmtCell(row[c.key]),
+      align: c.money ? "right" : undefined,
+      headerAlign: c.money ? "right" : undefined,
+      valueGetter: c.render ? undefined : (value, row) => (c.money ? fmtMoney(row[c.key]) : fmtCell(row[c.key])),
       renderCell: c.render ? (p) => c.render(p.row) : undefined,
     }));
     if (actions) {
