@@ -1,24 +1,14 @@
-// Code-value administration (ADR #34): pick a code list, then create/edit/
-// deactivate its values. System-locked lists are read-only (server enforces;
-// UI hides write actions). Every write is confirmed.
+// Code-value administration (MUI, ADR #34): pick a code list, then create/edit/
+// deactivate its values. System-locked lists are read-only. Writes are confirmed.
 import { useCallback, useEffect, useState } from "react";
 import {
-  Card,
-  CardHeader,
-  Select,
-  Option,
-  Label,
-  Input,
-  Switch,
-  Button,
-  Bar,
-  Text,
-  Title,
-  BusyIndicator,
-  MessageStrip,
-  FlexBox,
-  Dialog,
-} from "@ui5/webcomponents-react";
+  Card, CardHeader, CardContent, MenuItem, TextField, Button, Stack, Typography,
+  Table, TableBody, TableCell, TableHead, TableRow, IconButton, Dialog, DialogTitle,
+  DialogContent, DialogActions, FormControlLabel, Switch, Alert, Box,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { api } from "../api";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -28,14 +18,12 @@ function emptyForm() {
 
 export default function CodeValueManager() {
   const [lists, setLists] = useState([]);
-  const [selected, setSelected] = useState(null); // full code-list object
+  const [selected, setSelected] = useState(null);
   const [values, setValues] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState(null);
-
-  const [form, setForm] = useState(null); // null=closed; {record?, ...fields}
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [form, setForm] = useState(null);
+  const [confirmSave, setConfirmSave] = useState(false);
   const [deleteRow, setDeleteRow] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -44,15 +32,12 @@ export default function CodeValueManager() {
       const cls = await api.get("/v1/code-lists").catch(() => []);
       setLists(cls);
       if (cls.length) setSelected(cls[0]);
-      setLoading(false);
     })();
   }, []);
 
   const loadValues = useCallback(async (listKey) => {
     if (!listKey) return;
-    const rows = await api
-      .get(`/v1/code-lists/${listKey}/values`, { active_only: "" })
-      .catch(() => []);
+    const rows = await api.get(`/v1/code-lists/${listKey}/values`, { active_only: "" }).catch(() => []);
     setValues(rows);
   }, []);
 
@@ -62,189 +47,104 @@ export default function CodeValueManager() {
 
   const editable = selected && !(selected.is_system && !selected.allow_user_values);
 
-  const openCreate = () => setForm({ ...emptyForm() });
-  const openEdit = (row) =>
-    setForm({
-      record: row,
-      code: row.code,
-      label: row.label,
-      sort_order: row.sort_order,
-      is_default: row.is_default,
-      is_active: row.is_active,
-    });
-
   async function doSave() {
-    setBusy(true);
-    setError(null);
-    setMsg(null);
+    setBusy(true); setError(null); setMsg(null);
     try {
       const key = selected.list_key;
       const payload = {
-        code: form.code,
-        label: form.label,
-        sort_order: Number(form.sort_order) || 0,
-        is_default: Boolean(form.is_default),
-        is_active: Boolean(form.is_active),
+        code: form.code, label: form.label, sort_order: Number(form.sort_order) || 0,
+        is_default: Boolean(form.is_default), is_active: Boolean(form.is_active),
       };
-      if (form.record) {
-        await api.patch(`/v1/code-lists/${key}/values/${form.record.uuid}`, payload);
-      } else {
-        await api.post(`/v1/code-lists/${key}/values`, payload);
-      }
-      setConfirmOpen(false);
-      setForm(null);
-      setMsg("Saved.");
+      if (form.record) await api.patch(`/v1/code-lists/${key}/values/${form.record.uuid}`, payload);
+      else await api.post(`/v1/code-lists/${key}/values`, payload);
+      setConfirmSave(false); setForm(null); setMsg("Saved.");
       loadValues(key);
-    } catch (e) {
-      setConfirmOpen(false);
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setConfirmSave(false); setError(e.message); } finally { setBusy(false); }
   }
 
   async function doDelete() {
     if (!deleteRow) return;
-    setBusy(true);
-    setError(null);
+    setBusy(true); setError(null);
     try {
       await api.del(`/v1/code-lists/${selected.list_key}/values/${deleteRow.uuid}`);
-      setDeleteRow(null);
-      setMsg("Deactivated.");
-      loadValues(selected.list_key);
-    } catch (e) {
-      setDeleteRow(null);
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+      setDeleteRow(null); setMsg("Deactivated."); loadValues(selected.list_key);
+    } catch (e) { setDeleteRow(null); setError(e.message); } finally { setBusy(false); }
   }
 
   return (
-    <Card header={<CardHeader titleText="Code Lists (value help)" />} style={{ width: "100%" }}>
-      <div style={{ padding: "1rem" }}>
-        <BusyIndicator active={loading} style={{ width: "100%" }}>
-          {msg ? (
-            <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: "0.5rem" }}>{msg}</MessageStrip>
-          ) : null}
-          {error ? (
-            <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.5rem" }}>{error}</MessageStrip>
-          ) : null}
+    <Card>
+      <CardHeader title="Code Lists (value help)" />
+      <CardContent>
+        {msg ? <Alert severity="success" sx={{ mb: 1 }} onClose={() => setMsg(null)}>{msg}</Alert> : null}
+        {error ? <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert> : null}
 
-          <FlexBox style={{ gap: "0.75rem", alignItems: "flex-end", marginBottom: "0.75rem", flexWrap: "wrap" }}>
-            <div>
-              <Label>List</Label>
-              <Select
-                onChange={(e) => {
-                  const key = e.detail.selectedOption.dataset.key;
-                  setSelected(lists.find((l) => l.list_key === key) || null);
-                }}
-              >
-                {lists.map((cl) => (
-                  <Option key={cl.list_key} data-key={cl.list_key} selected={selected?.list_key === cl.list_key}>
-                    {cl.list_key}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-            {editable ? (
-              <Button design="Emphasized" icon="add" onClick={openCreate}>Create value</Button>
-            ) : (
-              <Text style={{ color: "var(--sapNeutralTextColor)" }}>System-managed (read-only)</Text>
-            )}
-          </FlexBox>
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: "wrap" }}>
+          <TextField
+            select size="small" label="List" sx={{ minWidth: 240 }}
+            value={selected?.list_key || ""}
+            onChange={(e) => setSelected(lists.find((l) => l.list_key === e.target.value) || null)}
+          >
+            {lists.map((cl) => <MenuItem key={cl.list_key} value={cl.list_key}>{cl.list_key}</MenuItem>)}
+          </TextField>
+          {editable ? (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setForm({ ...emptyForm() })}>Create value</Button>
+          ) : (
+            <Typography variant="body2" color="text.secondary">System-managed (read-only)</Typography>
+          )}
+        </Stack>
 
-          <div style={{ maxHeight: "360px", overflow: "auto", border: "1px solid var(--sapList_BorderColor,#ededed)", borderRadius: "4px" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead style={{ position: "sticky", top: 0, background: "var(--sapList_HeaderBackground,#f7f7f7)", zIndex: 1 }}>
-              <tr>
-                <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Code</Label></th>
-                <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Label</Label></th>
-                <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Order</Label></th>
-                <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Default</Label></th>
-                <th style={{ textAlign: "left", padding: "0.4rem 0.5rem" }}><Label>Active</Label></th>
-                {editable ? <th style={{ width: "96px" }} /> : null}
-              </tr>
-            </thead>
-            <tbody>
+        <Box sx={{ maxHeight: 360, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 1 }}>
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Code</TableCell><TableCell>Label</TableCell><TableCell>Order</TableCell>
+                <TableCell>Default</TableCell><TableCell>Active</TableCell>{editable ? <TableCell /> : null}
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {values.map((v) => (
-                <tr key={v.uuid} style={{ borderBottom: "1px solid var(--sapList_BorderColor,#ededed)" }}>
-                  <td style={{ padding: "0.4rem 0.5rem" }}><Text>{v.code}</Text></td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}><Text>{v.label}</Text></td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}><Text>{v.sort_order}</Text></td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}><Text>{v.is_default ? "✓" : ""}</Text></td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}><Text>{v.is_active ? "✓" : ""}</Text></td>
+                <TableRow key={v.uuid} hover>
+                  <TableCell>{v.code}</TableCell>
+                  <TableCell>{v.label}</TableCell>
+                  <TableCell>{v.sort_order}</TableCell>
+                  <TableCell>{v.is_default ? "✓" : ""}</TableCell>
+                  <TableCell>{v.is_active ? "✓" : ""}</TableCell>
                   {editable ? (
-                    <td style={{ padding: "0.4rem 0.5rem" }}>
-                      <Button icon="edit" design="Transparent" onClick={() => openEdit(v)} />
-                      <Button icon="delete" design="Transparent" onClick={() => { setError(null); setDeleteRow(v); }} />
-                    </td>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => setForm({ record: v, code: v.code, label: v.label, sort_order: v.sort_order, is_default: v.is_default, is_active: v.is_active })}><EditIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => { setError(null); setDeleteRow(v); }}><DeleteIcon fontSize="small" /></IconButton>
+                    </TableCell>
                   ) : null}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-          </div>
-        </BusyIndicator>
-      </div>
+            </TableBody>
+          </Table>
+        </Box>
+      </CardContent>
 
       {form ? (
-        <Dialog
-          open
-          headerText={`${form.record ? "Edit" : "Create"} code value`}
-          onAfterClose={() => setForm(null)}
-          footer={
-            <Bar
-              endContent={
-                <>
-                  <Button design="Transparent" onClick={() => setForm(null)}>Cancel</Button>
-                  <Button design="Emphasized" onClick={() => setConfirmOpen(true)}>Save</Button>
-                </>
-              }
-            />
-          }
-        >
-          <div style={{ padding: "0.5rem 0.25rem", display: "grid", gap: "0.6rem", minWidth: "320px" }}>
-            <div>
-              <Label showColon required>Code</Label>
-              <Input value={form.code} onInput={(e) => setForm({ ...form, code: e.target.value })} style={{ width: "100%" }} />
-            </div>
-            <div>
-              <Label showColon required>Label</Label>
-              <Input value={form.label} onInput={(e) => setForm({ ...form, label: e.target.value })} style={{ width: "100%" }} />
-            </div>
-            <div>
-              <Label showColon>Sort order</Label>
-              <Input type="Number" value={String(form.sort_order)} onInput={(e) => setForm({ ...form, sort_order: e.target.value })} style={{ width: "100%" }} />
-            </div>
-            <FlexBox style={{ gap: "1.5rem" }}>
-              <div><Label>Default</Label>{" "}<Switch checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} /></div>
-              <div><Label>Active</Label>{" "}<Switch checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /></div>
-            </FlexBox>
-          </div>
+        <Dialog open onClose={() => setForm(null)} maxWidth="xs" fullWidth>
+          <DialogTitle>{form.record ? "Edit" : "Create"} code value</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ mt: 0.5 }}>
+              <TextField label="Code" required size="small" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+              <TextField label="Label" required size="small" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
+              <TextField label="Sort order" type="number" size="small" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: e.target.value })} />
+              <Stack direction="row" spacing={3}>
+                <FormControlLabel control={<Switch checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />} label="Default" />
+                <FormControlLabel control={<Switch checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />} label="Active" />
+              </Stack>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setForm(null)}>Cancel</Button>
+            <Button variant="contained" onClick={() => setConfirmSave(true)}>Save</Button>
+          </DialogActions>
         </Dialog>
       ) : null}
 
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Save code value?"
-        message="Do you want to save this code value?"
-        confirmText="Save"
-        busy={busy}
-        onConfirm={doSave}
-        onCancel={() => setConfirmOpen(false)}
-      />
-
-      <ConfirmDialog
-        open={Boolean(deleteRow)}
-        title="Deactivate value?"
-        message={deleteRow ? `Deactivate "${deleteRow.label}"? Existing references are preserved.` : ""}
-        confirmText="Deactivate"
-        confirmDesign="Negative"
-        busy={busy}
-        onConfirm={doDelete}
-        onCancel={() => setDeleteRow(null)}
-      />
+      <ConfirmDialog open={confirmSave} title="Save code value?" message="Save this code value?" confirmText="Save" busy={busy} onConfirm={doSave} onCancel={() => setConfirmSave(false)} />
+      <ConfirmDialog open={Boolean(deleteRow)} title="Deactivate value?" message={deleteRow ? `Deactivate "${deleteRow.label}"? Existing references are preserved.` : ""} confirmText="Deactivate" confirmColor="error" busy={busy} onConfirm={doDelete} onCancel={() => setDeleteRow(null)} />
     </Card>
   );
 }

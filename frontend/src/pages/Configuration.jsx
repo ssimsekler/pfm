@@ -1,8 +1,5 @@
-// Configuration page: full CRUD for config data (ADR #32/#34).
-//   - Code values via CodeValueManager (respects system-locked lists).
-//   - LLM providers, integration endpoints, categorization rules, currency
-//     rates, holiday calendars via the reusable EntityManager.
-import { Title } from "@ui5/webcomponents-react";
+// Configuration page (MUI): code values + config entities (full CRUD).
+import { Box, Typography, Stack } from "@mui/material";
 import CodeValueManager from "../components/CodeValueManager";
 import EntityManager from "../components/EntityManager";
 import { ENTITIES } from "../entities";
@@ -17,16 +14,14 @@ const CONFIG_ENTITIES = [
 
 export default function Configuration() {
   return (
-    <div>
-      <Title level="H3" style={{ marginBottom: "1rem" }}>Configuration</Title>
-
-      <CodeValueManager />
-
-      {CONFIG_ENTITIES.map((key) => (
-        <div key={key} style={{ marginTop: "1.5rem" }}>
-          <EntityManager entity={key} cfg={ENTITIES[key]} />
-        </div>
-      ))}
-    </div>
+    <Box>
+      <Typography variant="h5" sx={{ mb: 2 }}>Configuration</Typography>
+      <Stack spacing={3}>
+        <CodeValueManager />
+        {CONFIG_ENTITIES.map((key) => (
+          <EntityManager key={key} entity={key} cfg={ENTITIES[key]} />
+        ))}
+      </Stack>
+    </Box>
   );
 }

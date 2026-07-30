@@ -8,20 +8,33 @@ import {
   useLocation,
 } from "react-router-dom";
 import {
-  ShellBar,
-  ShellBarItem,
-  SideNavigation,
-  SideNavigationItem,
-  SideNavigationSubItem,
-  FlexBox,
+  AppBar,
   Avatar,
-  Popover,
+  Box,
+  CssBaseline,
+  Divider,
+  Drawer,
+  IconButton,
   List,
-  StandardListItem,
-  Title,
-  Text,
-} from "@ui5/webcomponents-react";
-import "@ui5/webcomponents-icons/dist/AllIcons.js";
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  ListSubheader,
+  Menu,
+  MenuItem,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import HomeIcon from "@mui/icons-material/Home";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import SavingsIcon from "@mui/icons-material/Savings";
+import CategoryIcon from "@mui/icons-material/Category";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DownloadIcon from "@mui/icons-material/Download";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import SettingsIcon from "@mui/icons-material/Settings";
 
 import { initAuth, getUser, login, logout } from "./auth";
 import Launchpad from "./pages/Launchpad";
@@ -33,135 +46,171 @@ import Notifications from "./pages/Notifications";
 import Configuration from "./pages/Configuration";
 import Export from "./pages/Export";
 
-// Route key → element. Each screen has its own URL (#/key) so browser
-// Back/Forward and refresh work (#3).
+const DRAWER_WIDTH = 250;
+
+// key -> element renderer. Each screen has its own URL (#/key).
 const SCREENS = {
-  home: { label: "Overview", element: (nav) => <Launchpad navigate={nav} /> },
-  transactions: { label: "Transactions", element: () => <Transactions /> },
-  accounts: { label: "Accounts", element: () => <EntityList entity="accounts" /> },
-  institutions: { label: "Institutions", element: () => <EntityList entity="institutions" /> },
-  partners: { label: "Partners", element: () => <EntityList entity="partners" /> },
-  beneficiaries: { label: "Beneficiaries", element: () => <EntityList entity="beneficiaries" /> },
-  "expense-categories": { label: "Categories", element: () => <EntityList entity="expense-categories" /> },
-  "cash-flow-items": { label: "Cash Flow Items", element: () => <EntityList entity="cash-flow-items" /> },
-  investments: { label: "Investments", element: () => <EntityList entity="investments" /> },
-  loans: { label: "Loans", element: () => <EntityList entity="loans" /> },
-  "installment-plans": { label: "Installments", element: () => <EntityList entity="installment-plans" /> },
-  goals: { label: "Goals", element: () => <EntityList entity="goals" /> },
-  budgets: { label: "Budgets", element: () => <EntityList entity="budgets" /> },
-  reports: { label: "Reports", element: () => <Reports /> },
-  imports: { label: "Imports", element: () => <Imports /> },
-  notifications: { label: "Notifications", element: () => <Notifications /> },
-  configuration: { label: "Configuration", element: () => <Configuration /> },
-  export: { label: "Export", element: () => <Export /> },
+  home: (nav) => <Launchpad navigate={nav} />,
+  transactions: () => <Transactions />,
+  accounts: () => <EntityList entity="accounts" />,
+  institutions: () => <EntityList entity="institutions" />,
+  partners: () => <EntityList entity="partners" />,
+  beneficiaries: () => <EntityList entity="beneficiaries" />,
+  "expense-categories": () => <EntityList entity="expense-categories" />,
+  "cash-flow-items": () => <EntityList entity="cash-flow-items" />,
+  investments: () => <EntityList entity="investments" />,
+  loans: () => <EntityList entity="loans" />,
+  "installment-plans": () => <EntityList entity="installment-plans" />,
+  goals: () => <EntityList entity="goals" />,
+  budgets: () => <EntityList entity="budgets" />,
+  reports: () => <Reports />,
+  imports: () => <Imports />,
+  notifications: () => <Notifications />,
+  configuration: () => <Configuration />,
+  export: () => <Export />,
 };
 
-function Shell({ user, onProfile, profileOpen, setProfileOpen }) {
+// Sidebar structure: groups of { label, key, icon }.
+const NAV = [
+  { label: "Overview", key: "home", icon: <HomeIcon /> },
+  { label: "Transactions", key: "transactions", icon: <ReceiptLongIcon /> },
+  {
+    subheader: "Money",
+    items: [
+      { label: "Accounts", key: "accounts", icon: <AccountBalanceIcon /> },
+      { label: "Investments", key: "investments", icon: <SavingsIcon /> },
+      { label: "Loans", key: "loans", icon: <AccountBalanceIcon /> },
+      { label: "Installments", key: "installment-plans", icon: <ReceiptLongIcon /> },
+      { label: "Goals", key: "goals", icon: <SavingsIcon /> },
+    ],
+  },
+  {
+    subheader: "Master Data",
+    items: [
+      { label: "Institutions", key: "institutions", icon: <AccountBalanceIcon /> },
+      { label: "Partners", key: "partners", icon: <CategoryIcon /> },
+      { label: "Beneficiaries", key: "beneficiaries", icon: <CategoryIcon /> },
+      { label: "Categories", key: "expense-categories", icon: <CategoryIcon /> },
+      { label: "Cash Flow Items", key: "cash-flow-items", icon: <CategoryIcon /> },
+    ],
+  },
+  {
+    subheader: "Planning",
+    items: [
+      { label: "Budgets", key: "budgets", icon: <AssessmentIcon /> },
+      { label: "Reports", key: "reports", icon: <AssessmentIcon /> },
+    ],
+  },
+  { label: "Imports", key: "imports", icon: <UploadFileIcon /> },
+  { label: "Export", key: "export", icon: <DownloadIcon /> },
+  { label: "Notifications", key: "notifications", icon: <NotificationsIcon /> },
+  { label: "Configuration", key: "configuration", icon: <SettingsIcon /> },
+];
+
+function Shell({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const route = location.pathname.replace(/^\//, "") || "home";
   const go = (key) => navigate("/" + key);
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const navItem = (item) => (
+    <ListItemButton
+      key={item.key}
+      selected={route === item.key}
+      onClick={() => go(item.key)}
+      sx={{ borderRadius: 1, mx: 1 }}
+    >
+      <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+      <ListItemText primary={item.label} />
+    </ListItemButton>
+  );
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <ShellBar
-        primaryTitle="PFM"
-        secondaryTitle="Personal Finance Management"
-        showNotifications
-        onNotificationsClick={() => go("notifications")}
-        profile={<Avatar icon="employee" />}
-        onProfileClick={onProfile}
-      >
-        <ShellBarItem icon="home" text="Overview" onClick={() => go("home")} />
-        <ShellBarItem icon="excel-attachment" text="Export" onClick={() => go("export")} />
-      </ShellBar>
-
-      <Popover
-        open={profileOpen}
-        onAfterClose={() => setProfileOpen(false)}
-        headerText={user.name}
-        opener="pfm-avatar-opener"
-      >
-        <div style={{ padding: "0.5rem 0.75rem", minWidth: "220px" }}>
-          <Title level="H6">{user.name}</Title>
-          {user.email ? <Text style={{ display: "block" }}>{user.email}</Text> : null}
-          <Text style={{ display: "block", color: "var(--sapNeutralTextColor)", marginTop: "0.25rem" }}>
-            {user.authenticated ? `Roles: ${(user.roles || []).join(", ") || "—"}` : "Not signed in"}
-          </Text>
-          <List
-            style={{ marginTop: "0.5rem" }}
-            onItemClick={(e) => {
-              const action = e.detail.item.dataset.action;
-              setProfileOpen(false);
-              if (action === "login") login();
-              if (action === "logout") logout();
-              if (action === "profile") go("configuration");
-            }}
-          >
+    <Box sx={{ display: "flex", height: "100vh" }}>
+      <CssBaseline />
+      <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 0, mr: 1 }}>PFM</Typography>
+          <Typography variant="body2" sx={{ flexGrow: 1, opacity: 0.8 }}>
+            Personal Finance Management
+          </Typography>
+          <IconButton color="inherit" onClick={() => go("notifications")} size="large">
+            <NotificationsIcon />
+          </IconButton>
+          <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)} size="large">
+            <Avatar sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}>
+              {(user.name || "U").slice(0, 1).toUpperCase()}
+            </Avatar>
+          </IconButton>
+          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+            <MenuItem disabled>
+              <Box>
+                <Typography variant="subtitle2">{user.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {user.authenticated ? (user.roles || []).join(", ") || "no roles" : "Not signed in"}
+                </Typography>
+              </Box>
+            </MenuItem>
+            <Divider />
             {user.authenticated ? (
-              <>
-                <StandardListItem icon="person-placeholder" data-action="profile">My Profile</StandardListItem>
-                <StandardListItem icon="log" data-action="logout">Sign out</StandardListItem>
-              </>
+              [
+                <MenuItem key="profile" onClick={() => { setAnchorEl(null); go("configuration"); }}>My Profile</MenuItem>,
+                <MenuItem key="logout" onClick={() => { setAnchorEl(null); logout(); }}>Sign out</MenuItem>,
+              ]
             ) : (
-              <StandardListItem icon="log" data-action="login">Sign in</StandardListItem>
+              <MenuItem onClick={() => { setAnchorEl(null); login(); }}>Sign in</MenuItem>
+            )}
+          </Menu>
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        variant="permanent"
+        sx={{
+          width: DRAWER_WIDTH,
+          flexShrink: 0,
+          [`& .MuiDrawer-paper`]: { width: DRAWER_WIDTH, boxSizing: "border-box" },
+        }}
+      >
+        <Toolbar />
+        <Box sx={{ overflow: "auto", py: 1 }}>
+          <List dense>
+            {NAV.map((entry, idx) =>
+              entry.items ? (
+                <li key={entry.subheader}>
+                  <ul style={{ padding: 0 }}>
+                    <ListSubheader disableSticky>{entry.subheader}</ListSubheader>
+                    {entry.items.map(navItem)}
+                  </ul>
+                </li>
+              ) : (
+                navItem(entry)
+              )
             )}
           </List>
-        </div>
-      </Popover>
+        </Box>
+      </Drawer>
 
-      <FlexBox style={{ flex: 1, minHeight: 0 }}>
-        <SideNavigation
-          style={{ width: "260px", flexShrink: 0 }}
-          onSelectionChange={(e) => {
-            const key = e.detail.item.dataset.route;
-            if (key) go(key);
-          }}
-        >
-          <SideNavigationItem text="Overview" icon="home" data-route="home" selected={route === "home"} />
-          <SideNavigationItem text="Transactions" icon="journey-arrive" data-route="transactions" selected={route === "transactions"} />
-          <SideNavigationItem text="Money" icon="wallet" expanded>
-            <SideNavigationSubItem text="Accounts" data-route="accounts" selected={route === "accounts"} />
-            <SideNavigationSubItem text="Investments" data-route="investments" selected={route === "investments"} />
-            <SideNavigationSubItem text="Loans" data-route="loans" selected={route === "loans"} />
-            <SideNavigationSubItem text="Installments" data-route="installment-plans" selected={route === "installment-plans"} />
-            <SideNavigationSubItem text="Goals" data-route="goals" selected={route === "goals"} />
-          </SideNavigationItem>
-          <SideNavigationItem text="Master Data" icon="dimension" expanded>
-            <SideNavigationSubItem text="Institutions" data-route="institutions" selected={route === "institutions"} />
-            <SideNavigationSubItem text="Partners" data-route="partners" selected={route === "partners"} />
-            <SideNavigationSubItem text="Beneficiaries" data-route="beneficiaries" selected={route === "beneficiaries"} />
-            <SideNavigationSubItem text="Categories" data-route="expense-categories" selected={route === "expense-categories"} />
-            <SideNavigationSubItem text="Cash Flow Items" data-route="cash-flow-items" selected={route === "cash-flow-items"} />
-          </SideNavigationItem>
-          <SideNavigationItem text="Planning" icon="business-objects-experience" expanded>
-            <SideNavigationSubItem text="Budgets" data-route="budgets" selected={route === "budgets"} />
-            <SideNavigationSubItem text="Reports" data-route="reports" selected={route === "reports"} />
-          </SideNavigationItem>
-          <SideNavigationItem text="Imports" icon="add-document" data-route="imports" selected={route === "imports"} />
-          <SideNavigationItem text="Export" icon="excel-attachment" data-route="export" selected={route === "export"} />
-          <SideNavigationItem text="Notifications" icon="bell" data-route="notifications" selected={route === "notifications"} />
-          <SideNavigationItem text="Configuration" icon="action-settings" data-route="configuration" selected={route === "configuration"} />
-        </SideNavigation>
-
-        <div style={{ flex: 1, overflow: "auto", padding: "1rem 1.5rem", background: "var(--sapBackgroundColor)" }}>
+      <Box component="main" sx={{ flexGrow: 1, height: "100vh", overflow: "auto", bgcolor: "background.default" }}>
+        <Toolbar />
+        <Box sx={{ p: 3 }}>
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
-            {Object.entries(SCREENS).map(([key, s]) => (
-              <Route key={key} path={"/" + key} element={s.element(go)} />
+            {Object.entries(SCREENS).map(([key, render]) => (
+              <Route key={key} path={"/" + key} element={render(go)} />
             ))}
-            <Route path="*" element={<div>Not found</div>} />
+            <Route path="*" element={<Typography>Not found</Typography>} />
           </Routes>
-        </div>
-      </FlexBox>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
 export default function App() {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState({ name: "…", roles: [], authenticated: false });
-  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -172,17 +221,12 @@ export default function App() {
   }, []);
 
   if (!ready) {
-    return <div style={{ padding: "2rem" }}>Loading…</div>;
+    return <Box sx={{ p: 4 }}>Loading…</Box>;
   }
 
   return (
     <HashRouter>
-      <Shell
-        user={user}
-        profileOpen={profileOpen}
-        setProfileOpen={setProfileOpen}
-        onProfile={() => setProfileOpen((o) => !o)}
-      />
+      <Shell user={user} />
     </HashRouter>
   );
 }

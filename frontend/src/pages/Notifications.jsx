@@ -1,18 +1,11 @@
+// Notifications (MUI): list + unread-only toggle + mark-read.
 import { useCallback, useEffect, useState } from "react";
 import {
-  Title,
-  Table,
-  TableColumn,
-  TableRow,
-  TableCell,
-  Label,
-  Text,
-  Button,
-  Bar,
-  Switch,
-  BusyIndicator,
-  MessageStrip,
-} from "@ui5/webcomponents-react";
+  Box, Typography, Stack, FormControlLabel, Switch, Button, IconButton, Tooltip,
+  Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Snackbar, Alert,
+} from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import DoneIcon from "@mui/icons-material/Done";
 import { api } from "../api";
 
 export default function Notifications() {
@@ -23,95 +16,62 @@ export default function Notifications() {
   const [msg, setMsg] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const data = await api.get("/v1/notifications", {
-        unread_only: unreadOnly ? "true" : "",
-        limit: 200,
-      });
+      const data = await api.get("/v1/notifications", { unread_only: unreadOnly ? "true" : "", limit: 200 });
       setRows(Array.isArray(data) ? data : data.items || []);
-    } catch (e) {
-      setError(e.message);
-      setRows([]);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setError(e.message); setRows([]); } finally { setLoading(false); }
   }, [unreadOnly]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const markRead = async (uuid) => {
-    setError(null);
-    setMsg(null);
-    try {
-      await api.post(`/v1/notifications/${uuid}/read`);
-      setMsg("Marked as read.");
-      load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setError(null); setMsg(null);
+    try { await api.post(`/v1/notifications/${uuid}/read`); setMsg("Marked as read."); load(); }
+    catch (e) { setError(e.message); }
   };
 
-  const fmtDate = (v) => {
-    if (!v) return "";
-    try {
-      return new Date(v).toLocaleString();
-    } catch {
-      return String(v);
-    }
-  };
+  const fmtDate = (v) => { if (!v) return ""; try { return new Date(v).toLocaleString(); } catch { return String(v); } };
 
   return (
-    <div>
-      <Title level="H3" style={{ marginBottom: "1rem" }}>Notifications</Title>
+    <Box>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h5">Notifications</Typography>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <FormControlLabel control={<Switch checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />} label="Unread only" />
+          <Button startIcon={<RefreshIcon />} onClick={load}>Refresh</Button>
+        </Stack>
+      </Stack>
 
-      {msg ? (
-        <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: "0.5rem" }}>{msg}</MessageStrip>
-      ) : null}
-      {error ? (
-        <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.5rem" }}>{error}</MessageStrip>
-      ) : null}
-
-      <Bar
-        startContent={<Title level="H4">Notification center</Title>}
-        endContent={
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <Label>Unread only</Label>
-            <Switch checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
-            <Button icon="refresh" onClick={load}>Refresh</Button>
-          </div>
-        }
-        style={{ marginBottom: "0.5rem" }}
-      />
-
-      <BusyIndicator active={loading} style={{ width: "100%" }}>
-        <Table
-          columns={[
-            <TableColumn key="s"><Label>Subject</Label></TableColumn>,
-            <TableColumn key="b"><Label>Body</Label></TableColumn>,
-            <TableColumn key="c"><Label>Created</Label></TableColumn>,
-            <TableColumn key="a"><Label>Action</Label></TableColumn>,
-          ]}
-        >
-          {rows.map((n) => (
-            <TableRow key={n.uuid}>
-              <TableCell><Text>{n.subject}</Text></TableCell>
-              <TableCell><Text>{n.body}</Text></TableCell>
-              <TableCell><Text>{fmtDate(n.created_at)}</Text></TableCell>
-              <TableCell>
-                <Button design="Transparent" icon="accept" onClick={() => markRead(n.uuid)}>
-                  Mark read
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
+      {loading ? <CircularProgress /> : (
+        <Table size="small">
+          <TableHead>
+            <TableRow><TableCell>Subject</TableCell><TableCell>Body</TableCell><TableCell>Created</TableCell><TableCell align="right">Action</TableCell></TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((n) => (
+              <TableRow key={n.uuid} hover>
+                <TableCell>{n.subject}</TableCell>
+                <TableCell>{n.body}</TableCell>
+                <TableCell>{fmtDate(n.created_at)}</TableCell>
+                <TableCell align="right">
+                  <Tooltip title="Mark read"><IconButton size="small" onClick={() => markRead(n.uuid)}><DoneIcon fontSize="small" /></IconButton></Tooltip>
+                </TableCell>
+              </TableRow>
+            ))}
+            {rows.length === 0 ? <TableRow><TableCell colSpan={4}><Typography color="text.secondary">No notifications.</Typography></TableCell></TableRow> : null}
+          </TableBody>
         </Table>
-      </BusyIndicator>
+      )}
 
-      <Text style={{ display: "block", marginTop: "0.5rem" }}>{rows.length} notification(s)</Text>
-    </div>
+      <Typography variant="body2" sx={{ mt: 1 }}>{rows.length} notification(s)</Typography>
+
+      <Snackbar open={Boolean(msg)} autoHideDuration={4000} onClose={() => setMsg(null)}>
+        <Alert severity="success" onClose={() => setMsg(null)}>{msg}</Alert>
+      </Snackbar>
+      <Snackbar open={Boolean(error)} autoHideDuration={6000} onClose={() => setError(null)}>
+        <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>
+      </Snackbar>
+    </Box>
   );
 }

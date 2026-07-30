@@ -1,24 +1,8 @@
-/* Global reset so the full-height Fiori shell sits flush to the viewport
-   (fixes stray edge gaps / touching boundaries — no default body margin). */
-* {
-  box-sizing: border-box;
-}
-
+/* Minimal reset; MUI CssBaseline handles the rest. */
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
   padding: 0;
-}
-
-body {
-  font-family: var(--sapFontFamily, "72", "72full", Arial, Helvetica, sans-serif);
-}
-
-/* Give KPI/summary cards a consistent, non-touching rhythm. */
-.pfm-card-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
 }

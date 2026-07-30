@@ -1,18 +1,16 @@
+// Export & Import Data (MUI): single-workbook download, per-entity folder export,
+// and destructive round-trip import (confirmed, ADR #38).
 import { useState } from "react";
 import {
-  Title,
-  Card,
-  CardHeader,
-  Button,
-  Input,
-  Label,
-  Text,
-  MessageStrip,
-  FlexBox,
-  BusyIndicator,
-} from "@ui5/webcomponents-react";
+  Box, Card, CardHeader, CardContent, Button, TextField, Typography, Stack,
+  Alert, Snackbar,
+} from "@mui/material";
+import DownloadIcon from "@mui/icons-material/Download";
+import FolderIcon from "@mui/icons-material/Folder";
+import UploadIcon from "@mui/icons-material/Upload";
 import { api } from "../api";
 import { getToken } from "../auth";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -25,9 +23,7 @@ export default function Export() {
   const [confirmImport, setConfirmImport] = useState(false);
 
   const downloadWorkbook = async () => {
-    setBusy(true);
-    setErr(null);
-    setMsg(null);
+    setBusy(true); setErr(null); setMsg(null);
     try {
       const headers = {};
       const token = getToken();
@@ -37,146 +33,101 @@ export default function Export() {
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = "pfm_export.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      a.href = url; a.download = "pfm_export.xlsx";
+      document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       setMsg("Workbook downloaded.");
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
 
   const exportToFolder = async () => {
-    setBusy(true);
-    setErr(null);
-    setMsg(null);
+    setBusy(true); setErr(null); setMsg(null);
     try {
       const res = await api.post("/v1/export/to-folder", { folder });
-      setMsg("Wrote " + res.count + " files to " + res.folder + ".");
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+      setMsg(`Wrote ${res.count} files to ${res.folder}.`);
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
 
   const importWorkbook = async () => {
-    if (!importFile) {
-      setErr("Choose an .xlsx file to import first.");
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    setMsg(null);
+    setConfirmImport(false);
+    if (!importFile) { setErr("Choose an .xlsx file first."); return; }
+    setBusy(true); setErr(null); setMsg(null);
     try {
       const headers = {};
       const token = getToken();
       if (token) headers["Authorization"] = "Bearer " + token;
       const form = new FormData();
       form.append("file", importFile);
-      const resp = await fetch(BASE + "/v1/import/xlsx", {
-        method: "POST",
-        headers,
-        body: form,
-      });
+      const resp = await fetch(BASE + "/v1/import/xlsx", { method: "POST", headers, body: form });
       if (!resp.ok) throw new Error(resp.status + ": " + (await resp.text()));
       const res = await resp.json();
-      setMsg("Import complete. " + res.total + " rows written across all entities.");
-      setConfirmImport(false);
+      setMsg(`Import complete. ${res.total} rows written.`);
       setImportFile(null);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
 
   return (
-    <div>
-      <Title level="H3" style={{ marginBottom: "1rem" }}>Export &amp; Import Data</Title>
-      {msg ? <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: "0.5rem" }}>{msg}</MessageStrip> : null}
-      {err ? <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.5rem" }}>{err}</MessageStrip> : null}
-
-      <BusyIndicator active={busy} style={{ width: "100%", display: "block" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <Card header={<CardHeader titleText="Single workbook" subtitleText="One worksheet per entity (config, master, transactional)" />}>
-          <div style={{ padding: "1rem" }}>
-            <Text>Download all data as a single .xlsx file with one tab per entity.</Text>
-            <div style={{ marginTop: "0.75rem" }}>
-              <Button design="Emphasized" icon="excel-attachment" onClick={downloadWorkbook}>
-                Download workbook
-              </Button>
-            </div>
-          </div>
+    <Box>
+      <Typography variant="h5" sx={{ mb: 2 }}>Export &amp; Import Data</Typography>
+      <Stack spacing={2}>
+        <Card>
+          <CardHeader title="Single workbook" subheader="One worksheet per entity (config, master, transactional)" />
+          <CardContent>
+            <Typography sx={{ mb: 1.5 }}>Download all data as a single .xlsx file with one tab per entity.</Typography>
+            <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadWorkbook} disabled={busy}>Download workbook</Button>
+          </CardContent>
         </Card>
 
-        <Card
-          header={<CardHeader titleText="Separate files to a server folder" subtitleText="Writes one .xlsx per entity into a mounted folder" />}
-        >
-          <div style={{ padding: "1rem" }}>
-            <FlexBox style={{ gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div>
-                <Label>Server folder path</Label>
-                <Input value={folder} onInput={(e) => setFolder(e.target.value)} style={{ width: "340px" }} />
-              </div>
-              <Button icon="folder" onClick={exportToFolder}>Write files</Button>
-            </FlexBox>
-            <Text style={{ display: "block", marginTop: "0.5rem", color: "var(--sapNeutralTextColor)" }}>
+        <Card>
+          <CardHeader title="Separate files to a server folder" subheader="Writes one .xlsx per entity into a mounted folder" />
+          <CardContent>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap: "wrap" }}>
+              <TextField label="Server folder path" size="small" value={folder} onChange={(e) => setFolder(e.target.value)} sx={{ width: 340 }} />
+              <Button startIcon={<FolderIcon />} onClick={exportToFolder} disabled={busy}>Write files</Button>
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               The folder must be writable by the backend container (e.g. a mounted volume).
-            </Text>
-          </div>
+            </Typography>
+          </CardContent>
         </Card>
 
-        <Card
-          header={<CardHeader titleText="Import workbook" subtitleText="Wipe & reload all entities from an export file" />}
-        >
-          <div style={{ padding: "1rem" }}>
-            <MessageStrip design="Warning" hideCloseButton style={{ marginBottom: "0.75rem" }}>
-              Destructive: importing deletes all existing data first, then writes the
-              file content. Use only on a clean instance or to fully replace content.
-            </MessageStrip>
-            <FlexBox style={{ gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div>
-                <Label>Export workbook (.xlsx)</Label>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={(e) => {
-                    setImportFile(e.target.files && e.target.files[0] ? e.target.files[0] : null);
-                    setConfirmImport(false);
-                  }}
-                  style={{ display: "block", marginTop: "0.25rem" }}
-                />
-              </div>
-              {confirmImport ? (
-                <>
-                  <Button design="Negative" icon="upload" onClick={importWorkbook}>
-                    Confirm replace all data
-                  </Button>
-                  <Button design="Transparent" onClick={() => setConfirmImport(false)}>
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  design="Attention"
-                  icon="upload"
-                  disabled={!importFile}
-                  onClick={() => setConfirmImport(true)}
-                >
-                  Import &amp; replace
-                </Button>
-              )}
-            </FlexBox>
-          </div>
+        <Card>
+          <CardHeader title="Import workbook" subheader="Wipe & reload all entities from an export file" />
+          <CardContent>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Destructive: importing deletes all existing data first, then writes the file content.
+              Use only on a clean instance or to fully replace content.
+            </Alert>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap: "wrap" }}>
+              <Button component="label" variant="outlined">
+                {importFile ? importFile.name : "Choose .xlsx…"}
+                <input type="file" accept=".xlsx" hidden onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+              </Button>
+              <Button color="error" variant="contained" startIcon={<UploadIcon />} disabled={!importFile || busy} onClick={() => setConfirmImport(true)}>
+                Import &amp; replace
+              </Button>
+            </Stack>
+          </CardContent>
         </Card>
-        </div>
-      </BusyIndicator>
-    </div>
+      </Stack>
+
+      <ConfirmDialog
+        open={confirmImport}
+        title="Replace ALL data?"
+        message="This deletes all existing data and reloads it from the file. This cannot be undone. Continue?"
+        confirmText="Replace all data"
+        confirmColor="error"
+        busy={busy}
+        onConfirm={importWorkbook}
+        onCancel={() => setConfirmImport(false)}
+      />
+
+      <Snackbar open={Boolean(msg)} autoHideDuration={5000} onClose={() => setMsg(null)}>
+        <Alert severity="success" onClose={() => setMsg(null)}>{msg}</Alert>
+      </Snackbar>
+      <Snackbar open={Boolean(err)} autoHideDuration={7000} onClose={() => setErr(null)}>
+        <Alert severity="error" onClose={() => setErr(null)}>{err}</Alert>
+      </Snackbar>
+    </Box>
   );
 }

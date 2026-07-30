@@ -1,21 +1,16 @@
-// Structured filter bar for list screens (#20, ADR #25).
-//
-// Renders one control per `filterField` and emits a params object mapped to the
-// backend's query parameters. Supported filter kinds:
-//   text                -> ?<name>=value (server does search/ilike where supported)
-//   codeValue / ref     -> ?<name>=<id>  (exact match; dropdown via ComboField)
-//   dateRange           -> ?<from>=..&<to>=..   (fromParam/toParam)
-//   numberRange         -> ?<min>=..&<max>=..   (minParam/maxParam)
-//
-// The parent (EntityManager) merges the emitted params into DataTable extraParams.
+// Structured filter bar (MUI) for list screens (#20). Emits query params merged
+// into the DataGrid request. Date ranges use real date pickers (#4).
 import { useState } from "react";
-import { Button, Label, Input, FlexBox } from "@ui5/webcomponents-react";
+import { Box, Button, TextField, Paper } from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import dayjs from "dayjs";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
+import FilterAltOffIcon from "@mui/icons-material/FilterAltOff";
 import ComboField from "./ComboField";
 
 function buildParams(fields, state) {
   const params = {};
   for (const f of fields) {
-    const v = state[f.name];
     if (f.kind === "dateRange" || f.kind === "numberRange") {
       const from = state[f.name + "__from"];
       const to = state[f.name + "__to"];
@@ -23,9 +18,8 @@ function buildParams(fields, state) {
       if (to) params[f.toParam] = to;
       continue;
     }
-    if (v !== undefined && v !== null && v !== "") {
-      params[f.param || f.name] = v;
-    }
+    const v = state[f.name];
+    if (v !== undefined && v !== null && v !== "") params[f.param || f.name] = v;
   }
   return params;
 }
@@ -33,63 +27,46 @@ function buildParams(fields, state) {
 export default function FilterBar({ fields, onApply }) {
   const [state, setState] = useState({});
   if (!fields || fields.length === 0) return null;
-
   const set = (k, v) => setState((s) => ({ ...s, [k]: v }));
-  const apply = () => onApply(buildParams(fields, state));
-  const clear = () => {
-    setState({});
-    onApply({});
-  };
 
   return (
-    <FlexBox
-      style={{ gap: "0.75rem", padding: "0.25rem 0 0.5rem", flexWrap: "wrap", alignItems: "flex-end" }}
-    >
-      {fields.map((f) => {
-        if (f.kind === "codeValue" || f.kind === "ref") {
+    <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
+      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+        {fields.map((f) => {
+          if (f.kind === "codeValue" || f.kind === "ref") {
+            return (
+              <Box key={f.name} sx={{ minWidth: 200 }}>
+                <ComboField field={{ ...f, type: f.kind }} value={state[f.name] || ""} onChange={(v) => set(f.name, v)} label={f.label} />
+              </Box>
+            );
+          }
+          if (f.kind === "dateRange") {
+            return (
+              <Box key={f.name} sx={{ display: "flex", gap: 1 }}>
+                <DatePicker label={`${f.label} from`} value={state[f.name + "__from"] ? dayjs(state[f.name + "__from"]) : null}
+                  onChange={(d) => set(f.name + "__from", d ? d.format("YYYY-MM-DD") : "")}
+                  slotProps={{ textField: { size: "small" } }} />
+                <DatePicker label={`${f.label} to`} value={state[f.name + "__to"] ? dayjs(state[f.name + "__to"]) : null}
+                  onChange={(d) => set(f.name + "__to", d ? d.format("YYYY-MM-DD") : "")}
+                  slotProps={{ textField: { size: "small" } }} />
+              </Box>
+            );
+          }
+          if (f.kind === "numberRange") {
+            return (
+              <Box key={f.name} sx={{ display: "flex", gap: 1 }}>
+                <TextField label={`${f.label} min`} type="number" size="small" value={state[f.name + "__from"] || ""} onChange={(e) => set(f.name + "__from", e.target.value)} sx={{ width: 120 }} />
+                <TextField label={`${f.label} max`} type="number" size="small" value={state[f.name + "__to"] || ""} onChange={(e) => set(f.name + "__to", e.target.value)} sx={{ width: 120 }} />
+              </Box>
+            );
+          }
           return (
-            <div key={f.name} style={{ minWidth: "180px" }}>
-              <Label>{f.label}</Label>
-              <ComboField
-                field={{ ...f, type: f.kind }}
-                value={state[f.name] || ""}
-                onChange={(v) => set(f.name, v)}
-              />
-            </div>
+            <TextField key={f.name} label={f.label} size="small" value={state[f.name] || ""} onChange={(e) => set(f.name, e.target.value)} />
           );
-        }
-        if (f.kind === "dateRange") {
-          return (
-            <div key={f.name}>
-              <Label>{f.label}</Label>
-              <FlexBox style={{ gap: "0.35rem" }}>
-                <Input type="Date" value={state[f.name + "__from"] || ""} onInput={(e) => set(f.name + "__from", e.target.value)} />
-                <Input type="Date" value={state[f.name + "__to"] || ""} onInput={(e) => set(f.name + "__to", e.target.value)} />
-              </FlexBox>
-            </div>
-          );
-        }
-        if (f.kind === "numberRange") {
-          return (
-            <div key={f.name}>
-              <Label>{f.label}</Label>
-              <FlexBox style={{ gap: "0.35rem" }}>
-                <Input type="Number" placeholder="min" value={state[f.name + "__from"] || ""} onInput={(e) => set(f.name + "__from", e.target.value)} style={{ width: "90px" }} />
-                <Input type="Number" placeholder="max" value={state[f.name + "__to"] || ""} onInput={(e) => set(f.name + "__to", e.target.value)} style={{ width: "90px" }} />
-              </FlexBox>
-            </div>
-          );
-        }
-        // text
-        return (
-          <div key={f.name}>
-            <Label>{f.label}</Label>
-            <Input value={state[f.name] || ""} onInput={(e) => set(f.name, e.target.value)} />
-          </div>
-        );
-      })}
-      <Button design="Transparent" icon="filter" onClick={apply}>Filter</Button>
-      <Button design="Transparent" icon="clear-filter" onClick={clear}>Clear</Button>
-    </FlexBox>
+        })}
+        <Button variant="contained" startIcon={<FilterAltIcon />} onClick={() => onApply(buildParams(fields, state))}>Filter</Button>
+        <Button startIcon={<FilterAltOffIcon />} onClick={() => { setState({}); onApply({}); }}>Clear</Button>
+      </Box>
+    </Paper>
   );
 }

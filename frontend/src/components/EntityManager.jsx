@@ -1,17 +1,19 @@
-// Full CRUD manager for an entity (ADR #32): list + Create + row Edit/Delete.
-//
-// Uses DataTable for listing (adds an Actions column) and EntityForm for
-// create/edit. Delete goes through a ConfirmDialog (confirm-on-write).
+// Full CRUD manager (MUI): title + Create + filter bar + DataGrid (with row
+// Edit/Delete) + EntityForm dialog. Delete is confirmed (ADR #38).
 import { useState } from "react";
-import { Button, Title } from "@ui5/webcomponents-react";
+import { Box, Button, IconButton, Stack, Typography, Snackbar, Alert, Tooltip } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 import DataTable from "./DataTable";
 import EntityForm from "./EntityForm";
 import ConfirmDialog from "./ConfirmDialog";
 import FilterBar from "./FilterBar";
 import { api } from "../api";
 
-export default function EntityManager({ entity, cfg }) {
+export default function EntityManager({ entity, cfg, extra }) {
   const idField = cfg.idField || "uuid";
+  const readOnly = Boolean(cfg.readOnly);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formRecord, setFormRecord] = useState(undefined); // undefined=closed, null=create, obj=edit
   const [deleteRow, setDeleteRow] = useState(null);
@@ -19,39 +21,16 @@ export default function EntityManager({ entity, cfg }) {
   const [error, setError] = useState(null);
   const [filterParams, setFilterParams] = useState({});
 
-  const readOnly = Boolean(cfg.readOnly);
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  const columns = readOnly
-    ? cfg.columns
-    : [
-        ...cfg.columns,
-        {
-          key: "__actions",
-          label: "Actions",
-          render: (row) => (
-            <div style={{ display: "flex", gap: "0.25rem" }}>
-              <Button
-                icon="edit"
-                design="Transparent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFormRecord(row);
-                }}
-              />
-              <Button
-                icon="delete"
-                design="Transparent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setError(null);
-                  setDeleteRow(row);
-                }}
-              />
-            </div>
-          ),
-        },
-      ];
+  const actions = readOnly
+    ? undefined
+    : (row) => (
+        <Stack direction="row" spacing={0.5}>
+          <Tooltip title="Edit"><IconButton size="small" onClick={() => setFormRecord(row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => { setError(null); setDeleteRow(row); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
+        </Stack>
+      );
 
   async function doDelete() {
     if (!deleteRow) return;
@@ -69,27 +48,29 @@ export default function EntityManager({ entity, cfg }) {
     }
   }
 
-  const toolbar = readOnly ? null : (
-    <Button design="Emphasized" icon="add" onClick={() => setFormRecord(null)}>
-      Create
-    </Button>
-  );
-
   return (
-    <div>
-      <Title level="H3" style={{ marginBottom: "1rem" }}>{cfg.title}</Title>
+    <Box>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h5">{cfg.title}</Typography>
+        <Stack direction="row" spacing={1}>
+          {extra}
+          {!readOnly ? (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormRecord(null)}>Create</Button>
+          ) : null}
+        </Stack>
+      </Stack>
 
       {cfg.filterFields && cfg.filterFields.length > 0 ? (
         <FilterBar fields={cfg.filterFields} onApply={setFilterParams} />
       ) : null}
 
       <DataTable
-        title={cfg.title}
         path={cfg.path}
-        columns={columns}
-        toolbar={toolbar}
-        refreshKey={refreshKey}
+        columns={cfg.columns}
         extraParams={filterParams}
+        refreshKey={refreshKey}
+        actions={actions}
+        getRowId={(r) => r[idField]}
       />
 
       {formRecord !== undefined ? (
@@ -98,31 +79,24 @@ export default function EntityManager({ entity, cfg }) {
           cfg={cfg}
           record={formRecord}
           onClose={() => setFormRecord(undefined)}
-          onSaved={() => {
-            setFormRecord(undefined);
-            refresh();
-          }}
+          onSaved={() => { setFormRecord(undefined); refresh(); }}
         />
       ) : null}
 
       <ConfirmDialog
         open={Boolean(deleteRow)}
         title="Delete record?"
-        message={
-          deleteRow
-            ? `Delete "${deleteRow.name || deleteRow[idField]}"? This can be undone by an admin (soft delete).`
-            : ""
-        }
+        message={deleteRow ? `Delete "${deleteRow.name || deleteRow[idField]}"? This is a soft delete and can be restored by an admin.` : ""}
         confirmText="Delete"
-        confirmDesign="Negative"
+        confirmColor="error"
         busy={busy}
         onConfirm={doDelete}
         onCancel={() => setDeleteRow(null)}
       />
 
-      {error ? (
-        <div style={{ color: "var(--sapNegativeTextColor)", marginTop: "0.5rem" }}>{error}</div>
-      ) : null}
-    </div>
+      <Snackbar open={Boolean(error)} autoHideDuration={6000} onClose={() => setError(null)}>
+        <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>
+      </Snackbar>
+    </Box>
   );
 }

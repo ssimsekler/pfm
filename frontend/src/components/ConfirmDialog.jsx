@@ -1,5 +1,13 @@
-// Reusable confirmation dialog (ADR #32: every UI state change is confirmed).
-import { Dialog, Bar, Button, Text } from "@ui5/webcomponents-react";
+// Reusable confirmation dialog (MUI). Used for cancel-if-dirty, delete, and
+// complex/destructive actions (ADR #32/#38).
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from "@mui/material";
 
 export default function ConfirmDialog({
   open,
@@ -7,34 +15,23 @@ export default function ConfirmDialog({
   message = "Are you sure?",
   confirmText = "Confirm",
   cancelText = "Cancel",
-  confirmDesign = "Emphasized",
+  confirmColor = "primary",
   busy = false,
   onConfirm,
   onCancel,
 }) {
   return (
-    <Dialog
-      open={open}
-      headerText={title}
-      onAfterClose={onCancel}
-      footer={
-        <Bar
-          endContent={
-            <>
-              <Button design="Transparent" onClick={onCancel} disabled={busy}>
-                {cancelText}
-              </Button>
-              <Button design={confirmDesign} onClick={onConfirm} disabled={busy}>
-                {busy ? "Working…" : confirmText}
-              </Button>
-            </>
-          }
-        />
-      }
-    >
-      <div style={{ padding: "0.5rem 0.25rem", maxWidth: "420px" }}>
-        <Text>{message}</Text>
-      </div>
+    <Dialog open={open} onClose={busy ? undefined : onCancel} maxWidth="xs" fullWidth>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogContent>
+        <DialogContentText>{message}</DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel} disabled={busy}>{cancelText}</Button>
+        <Button onClick={onConfirm} variant="contained" color={confirmColor} disabled={busy}>
+          {busy ? "Working…" : confirmText}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

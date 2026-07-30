@@ -1,22 +1,17 @@
+// Import statements (MUI): upload → review parsed rows → commit (confirmed).
 import { useEffect, useState } from "react";
 import {
-  Title,
-  Card,
-  CardHeader,
-  Button,
-  FileUploader,
-  Input,
-  Label,
-  Table,
-  TableColumn,
-  TableRow,
-  TableCell,
-  Text,
-  MessageStrip,
-  FlexBox,
-  BusyIndicator,
-} from "@ui5/webcomponents-react";
+  Box, Card, CardHeader, CardContent, Button, Typography, Stack, Table, TableBody,
+  TableCell, TableHead, TableRow, Snackbar, Alert, CircularProgress, TextField,
+} from "@mui/material";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import CheckIcon from "@mui/icons-material/Check";
 import { api } from "../api";
+import ComboField from "../components/ComboField";
+import ConfirmDialog from "../components/ConfirmDialog";
+
+const ACCOUNT_FIELD = { type: "ref", refEntity: "accounts" };
+const CCY_FIELD = { type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" };
 
 export default function Imports() {
   const [imports, setImports] = useState([]);
@@ -27,16 +22,16 @@ export default function Imports() {
   const [msg, setMsg] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCommit, setConfirmCommit] = useState(false);
 
   const loadImports = async () => {
     const data = await api.get("/v1/imports", { limit: 50 }).catch(() => ({ items: [] }));
     setImports(data.items || []);
   };
-
   useEffect(() => { loadImports(); }, []);
 
-  const onUpload = async (event) => {
-    const file = event.detail?.files?.[0] || event.target?.files?.[0];
+  const onUpload = async (e) => {
+    const file = e.target?.files?.[0];
     if (!file) return;
     setBusy(true); setErr(null); setMsg(null);
     try {
@@ -44,11 +39,7 @@ export default function Imports() {
       setMsg(`Uploaded & parsed: ${doc.original_filename}`);
       await loadImports();
       await openImport(doc);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (ex) { setErr(ex.message); } finally { setBusy(false); e.target.value = ""; }
   };
 
   const openImport = async (doc) => {
@@ -57,101 +48,107 @@ export default function Imports() {
     setRows(r || []);
   };
 
-  const commit = async () => {
-    if (!selected || !accountId) { setErr("Select an import and enter an Account UUID."); return; }
+  const doCommit = async () => {
+    setConfirmCommit(false);
+    if (!selected || !accountId) { setErr("Select an import and an account."); return; }
     setBusy(true); setErr(null); setMsg(null);
     try {
       const res = await api.post(`/v1/imports/${selected.uuid}/commit`, {
-        account_id: accountId,
-        default_currency: defaultCcy,
-        skip_duplicates: true,
+        account_id: accountId, default_currency: defaultCcy, skip_duplicates: true,
       });
       setMsg(`Committed: ${res.created} created, ${res.skipped} skipped.`);
       await openImport(selected);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (ex) { setErr(ex.message); } finally { setBusy(false); }
   };
 
   return (
-    <div>
-      <Title level="H3" style={{ marginBottom: "1rem" }}>Import Statements</Title>
+    <Box>
+      <Typography variant="h5" sx={{ mb: 2 }}>Import Statements</Typography>
 
-      {msg && <MessageStrip design="Positive" hideCloseButton style={{ marginBottom: "0.5rem" }}>{msg}</MessageStrip>}
-      {err && <MessageStrip design="Negative" hideCloseButton style={{ marginBottom: "0.5rem" }}>{err}</MessageStrip>}
-
-      <Card header={<CardHeader titleText="1 · Upload a file" subtitleText="PDF, CSV or XLSX" />}>
-        <div style={{ padding: "1rem" }}>
-          <FileUploader accept=".csv,.xlsx,.xls,.pdf" hideInput onChange={onUpload}>
-            <Button design="Emphasized" icon="upload">Choose file…</Button>
-          </FileUploader>
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: "1rem" }} header={<CardHeader titleText="2 · Recent imports" />}>
-        <Table
-          columns={[
-            <TableColumn key="f"><Label>File</Label></TableColumn>,
-            <TableColumn key="s"><Label>Summary</Label></TableColumn>,
-            <TableColumn key="a"><Label></Label></TableColumn>,
-          ]}
-        >
-          {imports.map((d) => (
-            <TableRow key={d.uuid}>
-              <TableCell><Text>{d.original_filename}</Text></TableCell>
-              <TableCell><Text>{d.parse_summary ? JSON.stringify(d.parse_summary) : ""}</Text></TableCell>
-              <TableCell><Button onClick={() => openImport(d)}>Review</Button></TableCell>
-            </TableRow>
-          ))}
-        </Table>
-      </Card>
-
-      {selected && (
-        <Card style={{ marginTop: "1rem" }} header={<CardHeader titleText={`3 · Review & commit — ${selected.original_filename}`} />}>
-          <BusyIndicator active={busy} style={{ width: "100%" }}>
-            <div style={{ padding: "1rem" }}>
-              <FlexBox style={{ gap: "1rem", alignItems: "flex-end", marginBottom: "0.75rem", flexWrap: "wrap" }}>
-                <div>
-                  <Label>Account UUID</Label>
-                  <Input value={accountId} placeholder="account uuid" onInput={(e) => setAccountId(e.target.value)} style={{ width: "320px" }} />
-                </div>
-                <div>
-                  <Label>Default currency</Label>
-                  <Input value={defaultCcy} onInput={(e) => setDefaultCcy(e.target.value)} style={{ width: "120px" }} />
-                </div>
-                <Button design="Emphasized" icon="accept" onClick={commit}>Commit transactions</Button>
-              </FlexBox>
-
-              <Table
-                columns={[
-                  <TableColumn key="d"><Label>Date</Label></TableColumn>,
-                  <TableColumn key="a"><Label>Amount</Label></TableColumn>,
-                  <TableColumn key="c"><Label>Currency</Label></TableColumn>,
-                  <TableColumn key="p"><Label>Partner</Label></TableColumn>,
-                  <TableColumn key="s"><Label>Status</Label></TableColumn>,
-                  <TableColumn key="t"><Label>Committed</Label></TableColumn>,
-                ]}
-              >
-                {rows.map((r) => {
-                  const mv = r.mapped_values || {};
-                  return (
-                    <TableRow key={r.uuid}>
-                      <TableCell><Text>{mv.date || ""}</Text></TableCell>
-                      <TableCell><Text>{mv.amount ?? ""}</Text></TableCell>
-                      <TableCell><Text>{mv.currency || ""}</Text></TableCell>
-                      <TableCell><Text>{mv.partner_name || mv.partner_name_new || mv.partner || ""}</Text></TableCell>
-                      <TableCell><Text>{r.mapping_status_cv_id ? "mapped" : ""}</Text></TableCell>
-                      <TableCell><Text>{r.target_txn_id ? "✓" : ""}</Text></TableCell>
-                    </TableRow>
-                  );
-                })}
-              </Table>
-            </div>
-          </BusyIndicator>
+      <Stack spacing={2}>
+        <Card>
+          <CardHeader title="1 · Upload a file" subheader="PDF, CSV or XLSX" />
+          <CardContent>
+            <Button component="label" variant="contained" startIcon={<UploadFileIcon />} disabled={busy}>
+              Choose file…
+              <input type="file" accept=".csv,.xlsx,.xls,.pdf" hidden onChange={onUpload} />
+            </Button>
+          </CardContent>
         </Card>
-      )}
-    </div>
+
+        <Card>
+          <CardHeader title="2 · Recent imports" />
+          <CardContent>
+            <Table size="small">
+              <TableHead><TableRow><TableCell>File</TableCell><TableCell>Summary</TableCell><TableCell /></TableRow></TableHead>
+              <TableBody>
+                {imports.map((d) => (
+                  <TableRow key={d.uuid} hover>
+                    <TableCell>{d.original_filename}</TableCell>
+                    <TableCell>{d.parse_summary ? JSON.stringify(d.parse_summary) : ""}</TableCell>
+                    <TableCell><Button size="small" onClick={() => openImport(d)}>Review</Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {selected ? (
+          <Card>
+            <CardHeader title={`3 · Review & commit — ${selected.original_filename}`} />
+            <CardContent>
+              {busy ? <CircularProgress size={20} sx={{ mb: 1 }} /> : null}
+              <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: "wrap" }} alignItems="center">
+                <Box sx={{ minWidth: 260 }}>
+                  <ComboField field={ACCOUNT_FIELD} value={accountId} onChange={setAccountId} label="Account" required />
+                </Box>
+                <Box sx={{ minWidth: 160 }}>
+                  <ComboField field={CCY_FIELD} value={defaultCcy} onChange={setDefaultCcy} label="Default currency" />
+                </Box>
+                <Button variant="contained" startIcon={<CheckIcon />} onClick={() => setConfirmCommit(true)}>Commit transactions</Button>
+              </Stack>
+
+              <Table size="small">
+                <TableHead>
+                  <TableRow><TableCell>Date</TableCell><TableCell>Amount</TableCell><TableCell>Currency</TableCell><TableCell>Partner</TableCell><TableCell>Status</TableCell><TableCell>Committed</TableCell></TableRow>
+                </TableHead>
+                <TableBody>
+                  {rows.map((r) => {
+                    const mv = r.mapped_values || {};
+                    return (
+                      <TableRow key={r.uuid}>
+                        <TableCell>{mv.date || ""}</TableCell>
+                        <TableCell>{mv.amount ?? ""}</TableCell>
+                        <TableCell>{mv.currency || ""}</TableCell>
+                        <TableCell>{mv.partner_name || mv.partner_name_new || mv.partner || ""}</TableCell>
+                        <TableCell>{r.mapping_status_cv_id ? "mapped" : ""}</TableCell>
+                        <TableCell>{r.target_txn_id ? "✓" : ""}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ) : null}
+      </Stack>
+
+      <ConfirmDialog
+        open={confirmCommit}
+        title="Commit import?"
+        message={`Create transactions from "${selected?.original_filename}" into the selected account? Duplicates are skipped.`}
+        confirmText="Commit"
+        onConfirm={doCommit}
+        onCancel={() => setConfirmCommit(false)}
+      />
+
+      <Snackbar open={Boolean(msg)} autoHideDuration={5000} onClose={() => setMsg(null)}>
+        <Alert severity="success" onClose={() => setMsg(null)}>{msg}</Alert>
+      </Snackbar>
+      <Snackbar open={Boolean(err)} autoHideDuration={7000} onClose={() => setErr(null)}>
+        <Alert severity="error" onClose={() => setErr(null)}>{err}</Alert>
+      </Snackbar>
+    </Box>
   );
 }

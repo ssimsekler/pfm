@@ -10,6 +10,25 @@
 
 - **Active phase:** Phase 11 — UX bug-fix & feature pass (IN PROGRESS). Fixing reported
   issues in batches; commit/push after each batch (per `.clinerules/docs-continuity.md`).
+  - **Round 2 Batch 1 (DONE):** fixed create HTTP 500 on Account/Cash Flow Item/Currency Rate
+    — audit `_snapshot()` is now JSON-safe (Decimal→float) [ADR #42, #5]; **server-side derived
+    level** for beneficiary/expense-category via a CRUD `pre_write` hook (depth guards, self/cycle
+    reject) [ADR #43, #3]; **full ISO** currencies+countries seeded (`iso_data.py`) [ADR #44, #1];
+    Postgres **advisory lock** serializes API+worker startup [ADR #45]. Verified Account→201,
+    132 currencies.
+  - **Round 2 Batch 2 (DONE):** **migrated UI from UI5 → MUI** (finance-blue theme) [ADR #41] —
+    AppBar+Drawer shell, MUI **DataGrid** lists (built-in filters/sort/pagination), **Autocomplete**
+    type-ahead value help (#2), **X Date Pickers** (#4), resizable MUI dialogs (#10); ComboField
+    cache clears after writes + excludes self as parent (#3); confirm-on-cancel-if-dirty / delete /
+    import-commit / import-replace (#38); Reports use **Recharts** (volume pies incl. supplier &
+    beneficiary) (#13 partial). All pages rebuilt on MUI; frontend builds and serves 200.
+  - **Round 2 Batch 3 (TODO):** budget lines UI (#6); expense-category CSV seed (#8); holiday
+    calendar weekend/week-start + day editor (A.1); loan/investment auto-account (A.6); app_config
+    settings screen (A.7); user profile; entity-prefix maintenance; country-aware import mapping.
+  - **Round 2 Batch 4 (TODO):** more reports (projection line, budget-vs-actual, monthly trend);
+    installment/loan payment tracking (#15/#16); investment valuation history (#18); recurring
+    items UI (#19); transfers dialog (A.5); auth: admin user + Users admin + password fallback (#14);
+    in-app Help/Wiki (A.2).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a
