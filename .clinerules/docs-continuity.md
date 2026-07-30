@@ -30,6 +30,19 @@ code. Before finishing a task, update whichever of these apply:
   (e.g. no network/credentials), keep committing locally and retry the push next time
   (ADR #22). This applies to all interactions and all future sessions.
 
+## 3a. Git invocation on Windows/PowerShell (avoid false "errors" / getting stuck)
+`git` writes normal progress to **stderr** (e.g. `To https://…`, `abc..def main -> main`)
+even on success. In PowerShell, combining streams with `2>&1` and piping to
+`Select-Object`/`Out-*` makes PowerShell wrap those lines as `NativeCommandError` /
+`RemoteException` (red text), which looks like a failure and can leave the run
+ambiguous ("stuck"). To prevent this:
+- **Do NOT** pipe git through `2>&1 | Select-Object …`. Run git as plain commands.
+- Run commit and push as **separate** commands (do not chain with `;` + a pipe).
+- Prefer `cmd /c "git push origin main 2>&1"` (returns plain text, no PowerShell
+  error-wrapping), or set `$env:GIT_REDIRECT_STDERR='2>&1'` once per session.
+- After pushing, confirm success cleanly with `git rev-parse HEAD` and `git status -sb`
+  rather than parsing the push output.
+
 ## 4. Conventions
 - ADRs are numbered incrementally (see the last number in `docs/DECISIONS.md`).
 - Keep `docs/PROGRESS.md` accurate enough that a fresh session can resume from
