@@ -34,6 +34,13 @@ DEFAULT_PREFIXES: dict[str, tuple[str, int]] = {
     "app_user": ("USR", 5),
     "role": ("ROL", 5),
     "user_role": ("URL", 5),
+    "recurrence_profile": ("REC", 5),
+    "holiday_calendar": ("HOL", 5),
+    "amortization": ("AMT", 5),
+    "tag": ("TAG", 5),
+    "llm_provider": ("LLM", 5),
+    "feature_llm_binding": ("FLB", 5),
+    "integration_endpoint": ("IEP", 5),
 }
 
 # Resolve the institution prefix collision explicitly.

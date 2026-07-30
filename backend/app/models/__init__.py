@@ -38,3 +38,11 @@ from app.models.scheduling import (  # noqa: F401
     AmortizationSchedule,
     Goal,
 )
+from app.models.automation import (  # noqa: F401
+    LlmProvider,
+    FeatureLlmBinding,
+    IntegrationEndpoint,
+    CategorizationRule,
+    InvestmentHolding,
+    ValuationHistory,
+)

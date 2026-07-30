@@ -3,11 +3,15 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
+from app.models.automation import IntegrationEndpoint, LlmProvider
 from app.models.meta import AppConfig, CodeList, CodeValue
 from app.models.reference import Country, Currency
 from app.models.security import Role
 from app.services import seed_data
 from app.services.id_sequence import next_mnemonic
+
+_settings = get_settings()
 
 
 def seed_all(db: Session) -> None:
@@ -16,7 +20,72 @@ def seed_all(db: Session) -> None:
     _seed_countries(db)
     _seed_roles(db)
     _seed_app_config(db)
+    _seed_ollama_provider(db)
+    _seed_integration_endpoints(db)
     db.commit()
+
+
+def _code_value(db: Session, list_key: str, code: str):
+    cl = db.execute(select(CodeList).where(CodeList.list_key == list_key)).scalar_one_or_none()
+    if cl is None:
+        return None
+    return db.execute(
+        select(CodeValue).where(CodeValue.code_list_id == cl.uuid, CodeValue.code == code)
+    ).scalar_one_or_none()
+
+
+def _seed_ollama_provider(db: Session) -> None:
+    """Seed a default local Ollama provider (Decision #24)."""
+    existing = db.execute(
+        select(LlmProvider).where(LlmProvider.name == "Local Ollama")
+    ).scalar_one_or_none()
+    if existing:
+        return
+    kind = _code_value(db, "llm_kind", "ollama")
+    db.add(
+        LlmProvider(
+            mnemonic_id=next_mnemonic(db, "llm_provider"),
+            name="Local Ollama",
+            description="Bundled local LLM provider",
+            kind_cv_id=kind.uuid if kind else None,
+            base_url=_settings.ollama_base_url,
+            model=_settings.ollama_default_model,
+            enabled=True,
+        )
+    )
+    db.flush()
+
+
+def _seed_integration_endpoints(db: Session) -> None:
+    """Seed default FX/stock/crypto endpoints (Decision #18)."""
+    defaults = [
+        ("FX_RATES", "Frankfurter", "https://api.frankfurter.app"),
+        ("CRYPTO_QUOTE", "CoinGecko", "https://api.coingecko.com/api/v3"),
+        ("STOCK_QUOTE", "Yahoo Finance", "https://query1.finance.yahoo.com"),
+    ]
+    for scenario_key, provider_name, base_url in defaults:
+        existing = db.execute(
+            select(IntegrationEndpoint).where(
+                IntegrationEndpoint.scenario_key == scenario_key
+            )
+        ).scalar_one_or_none()
+        if existing:
+            continue
+        none_auth = _code_value(db, "auth_type", "none")
+        db.add(
+            IntegrationEndpoint(
+                mnemonic_id=next_mnemonic(db, "integration_endpoint"),
+                name=f"{provider_name} ({scenario_key})",
+                scenario_key=scenario_key,
+                provider_name=provider_name,
+                base_url=base_url,
+                auth_type_cv_id=none_auth.uuid if none_auth else None,
+                timeout_ms=8000,
+                priority=1,
+                enabled=True,
+            )
+        )
+    db.flush()
 
 
 def _seed_currencies(db: Session) -> None:

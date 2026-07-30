@@ -5,27 +5,28 @@
 
 ## Current status
 
-- **Active phase:** Phase 3 — Recurrence, installments, loans, goals, income (COMPLETE) → next: Phase 4
-- **Last completed (Phase 3):** models (`models/scheduling.py`): holiday_calendar(+day),
-  recurrence_profile, installment_plan(+schedule), loan(+amortization_schedule), goal;
-  **recurrence engine** (`services/recurrence.py`: weekly, monthly_nth_day, monthly_last_day,
-  monthly_last_bday, quarterly, yearly; business-day rules prev/next with holiday calendars —
-  Decision #9/#13); **schedule generators** (`services/schedules.py`: equal installments +
-  fixed-rate amortization); CRUD routers for holiday-calendars (+ `/{id}/days`),
-  recurrence-profiles (+ `/{id}/occurrences` preview), installment-plans (+ `/generate`,
-  `/schedule`), loans (+ `/generate`, `/schedule`), goals; and the **recurring** router:
-  `GET /api/v1/recurring/pending?until=` (recurring cash-flow items with no txn yet) and
-  `POST /api/v1/recurring/materialize` (creates a txn with next `expense_item_seq_no`,
-  Policy 1 category inheritance — spec 1.4.1). Wired into `main.py`. Income is supported via
-  `cash_flow_item.flow_type` (Decision #17). All 37 backend files pass syntax check.
-- **Next step:** Begin **Phase 4 — Integrations & automation**: canonical connector framework
-  driven by `integration_endpoint`; FX-rate pull (Frankfurter) + stock (yfinance/AlphaVantage)
-  + crypto (CoinGecko) connectors; **LLM Gateway** (llm_provider + feature_llm_binding,
-  primary→secondary failover, master switch, PII redaction, seed default Ollama provider);
-  categorization rules engine; investment valuation refresh + history.
+- **Active phase:** Phase 4 — Integrations & automation (COMPLETE) → next: Phase 5
+- **Last completed (Phase 4):** models (`models/automation.py`): llm_provider, feature_llm_binding,
+  integration_endpoint, categorization_rule, investment_holding, valuation_history;
+  **connector framework** (`services/connectors.py`: FX Frankfurter, crypto CoinGecko, stock Yahoo;
+  endpoint resolved from `integration_endpoint` registry with public defaults — Decision #18);
+  **LLM Gateway** (`services/llm_gateway.py`: master switch, per-feature primary→secondary
+  failover, PII redaction, graceful None → placeholder, Ollama generation — Decision #19);
+  **rules engine** (`services/rules.py`); **valuation refresh** (`services/valuation.py`:
+  price → cache + valuation_history, source of truth — 5.2); CRUD routers for llm-providers,
+  feature-llm-bindings, integration-endpoints, categorization-rules, investments (+ `/refresh-valuation`,
+  `/valuations` GET/POST); **FX refresh** `POST /api/v1/fx/refresh` (pulls a rate, closes the open
+  period, opens a new open-ended one — Decision #26). Seeder now seeds a default **Ollama provider**
+  (Decision #24) and default FX/stock/crypto **integration endpoints**. All 42 backend files pass
+  syntax check.
+- **Next step:** Begin **Phase 5 — Import pipeline**: document_import(+row) models; upload
+  (pdf/csv/xlsx) to MinIO; parse (pdfplumber/pandas+openpyxl); LLM/rule-assisted mapping to
+  partners/categories with matched/new/unmapped status; preview → commit (create transactions,
+  dedup hash, note with original filename — spec 3.1–3.3); reuse LLM Gateway + rules engine.
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET /api/docs`, `/api/v1/recurrence-profiles/{id}/occurrences?until=2026-12-31`,
-  `/api/v1/loans/{id}/generate`, `/api/v1/recurring/pending?until=2026-12-31`.
+  `GET /api/docs`, `/api/v1/llm-providers`, `/api/v1/integration-endpoints`,
+  `POST /api/v1/fx/refresh {base_ccy:"AED",quote_ccy:"USD"}`,
+  `POST /api/v1/investments/{id}/refresh-valuation`.
 
 ## How to resume
 
@@ -51,7 +52,7 @@
 - [x] **Phase 1 — Data & platform core** (models, base mixin, id-sequence, outbox+audit, Keycloak/RBAC, code_list/code_value + seed system code lists, value-help endpoints, generic Repository with search/filter/sort/pagination; Alembic scaffolded — first real migration pending in Phase 2)
 - [x] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup, country/institution/currency reference routers, first Alembic migration + FX no-overlap constraint)
 - [x] **Phase 3 — Recurrence, installments, loans, goals, income** (recurrence engine w/ business-day rules + holiday calendars; installment plans + schedule; loans + amortization; goals; pending-recurring + materialize-to-transaction; income via cash_flow_item.flow_type)
-- [ ] **Phase 4 — Integrations & automation** (connector framework, FX/stock/crypto, LLM Gateway, rules engine, valuation refresh)
+- [x] **Phase 4 — Integrations & automation** (connector framework FX/stock/crypto, LLM Gateway w/ failover+redaction, rules engine, investment valuation refresh+history, FX refresh into validity periods, seeded Ollama provider + default endpoints)
 - [ ] **Phase 5 — Import pipeline** (pdf/csv/xlsx → mapping → preview → commit, dedup, filename note)
 - [ ] **Phase 6 — Budgeting & reporting** (budgets, recommendations, variance, prebuilt reports, charts, SQL console)
 - [ ] **Phase 7 — Notifications & scheduler**

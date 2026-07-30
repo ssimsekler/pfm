@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from app import __version__
 from app.api.attachments_tags import ALL_ROUTERS as ATTACH_TAG_ROUTERS
+from app.api.automation import ALL_ROUTERS as AUTOMATION_ROUTERS
 from app.api.financial import ALL_ROUTERS as FINANCIAL_ROUTERS
 from app.api.reference import ALL_ROUTERS as REFERENCE_ROUTERS
 from app.api.scheduling import ALL_ROUTERS as SCHEDULING_ROUTERS
@@ -42,6 +43,7 @@ for _router in [
     *FINANCIAL_ROUTERS,
     *TRANSFERS_FX_ROUTERS,
     *SCHEDULING_ROUTERS,
+    *AUTOMATION_ROUTERS,
     *ATTACH_TAG_ROUTERS,
 ]:
     app.include_router(_router)
