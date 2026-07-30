@@ -1,21 +1,23 @@
-"""Data export API (Decision #29):
+"""Data export/import API (Decision #29):
 
   GET  /api/v1/export/xlsx            download a single workbook (one tab per entity)
   POST /api/v1/export/to-folder       write one .xlsx per entity to a server-side folder
+  POST /api/v1/import/xlsx            wipe & reload all entities from an uploaded workbook
 """
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
-from app.services import export_data
+from app.services import export_data, import_data
 
 router = APIRouter(prefix="/api/v1/export", tags=["export"])
+import_router = APIRouter(prefix="/api/v1/import", tags=["export"])
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -54,4 +56,27 @@ def export_to_folder(
     return {"folder": payload.folder, "files": paths, "count": len(paths)}
 
 
-ALL_ROUTERS = [router]
+@import_router.post("/xlsx")
+async def import_xlsx(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    """Wipe & reload every entity from an uploaded export workbook.
+
+    WARNING: destructive — existing data is deleted before the file content is
+    written. Intended for porting content into a clean instance (Decision #29).
+    """
+    if file.content_type not in (XLSX_MIME, "application/octet-stream", None):
+        raise HTTPException(status_code=400, detail="Expected an .xlsx workbook")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    try:
+        summary = import_data.import_workbook(db, content)
+    except import_data.ImportError_ as exc:
+        raise HTTPException(status_code=400, detail=f"Import failed: {exc}") from exc
+    return {"status": "ok", "written": summary, "total": sum(summary.values())}
+
+
+ALL_ROUTERS = [router, import_router]
