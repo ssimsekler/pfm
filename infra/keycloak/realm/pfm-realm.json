@@ -18,12 +18,26 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "redirectUris": ["http://localhost/*", "http://localhost:5173/*"],
       "webOrigins": ["http://localhost", "http://localhost:5173"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "PFM",
+      "lastName": "Administrator",
+      "email": "admin@pfm.local",
+      "credentials": [
+        { "type": "password", "value": "admin", "temporary": false }
+      ],
+      "realmRoles": ["Owner"]
     }
   ]
 }

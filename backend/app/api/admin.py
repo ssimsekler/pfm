@@ -8,15 +8,19 @@ These power the App Settings, Entity Prefixes, and My Profile screens.
 
 import uuid as uuid_lib
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
 from app.models.meta import AppConfig, IdSequence
-from app.models.security import AppUser
+from app.models.security import AppUser, Role, UserRole
+
+settings = get_settings()
 
 # ---------------------------------------------------------------------------
 # App config (key/value settings)
@@ -188,4 +192,180 @@ def update_profile(
     return get_profile(db, principal)
 
 
-ALL_ROUTERS = [app_config_router, prefix_router, profile_router]
+# ---------------------------------------------------------------------------
+# Users admin (local app_user / role / user_role mirror) — #14
+# ---------------------------------------------------------------------------
+users_router = APIRouter(prefix="/api/v1/users", tags=["users"])
+
+
+class UserOut(BaseModel):
+    uuid: uuid_lib.UUID
+    name: str | None = None
+    email: str | None = None
+    base_currency: str | None = None
+    roles: list[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+class UserCreate(BaseModel):
+    name: str
+    email: str | None = None
+    base_currency: str | None = None
+    role: str | None = None  # optional role name to grant
+
+
+class UserUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    base_currency: str | None = None
+
+
+def _roles_for(db: Session, user_id: uuid_lib.UUID) -> list[str]:
+    rows = db.execute(
+        select(Role.name).join(UserRole, UserRole.role_id == Role.uuid).where(UserRole.user_id == user_id)
+    ).scalars()
+    return [r for r in rows if r]
+
+
+def _user_out(db: Session, user: AppUser) -> UserOut:
+    return UserOut(
+        uuid=user.uuid, name=user.name, email=user.email,
+        base_currency=user.base_currency, roles=_roles_for(db, user.uuid),
+    )
+
+
+@users_router.get("", response_model=list[UserOut])
+def list_users(db: Session = Depends(get_db), _: Principal = Depends(get_current_principal)):
+    users = db.execute(select(AppUser).where(AppUser.deleted_at.is_(None)).order_by(AppUser.name)).scalars()
+    return [_user_out(db, u) for u in users]
+
+
+@users_router.post("", response_model=UserOut, status_code=201)
+def create_user(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    from app.services.repository import Repository
+
+    repo = Repository(AppUser, entity_type="app_user", event_domain="app_user")
+    user = repo.create(db, {"name": payload.name, "email": payload.email, "base_currency": payload.base_currency})
+    if payload.role:
+        _grant_role(db, user.uuid, payload.role)
+    db.commit()
+    db.refresh(user)
+    return _user_out(db, user)
+
+
+@users_router.patch("/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: uuid_lib.UUID,
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    for field in ["name", "email", "base_currency"]:
+        val = getattr(payload, field)
+        if val is not None:
+            setattr(user, field, val)
+    db.commit()
+    db.refresh(user)
+    return _user_out(db, user)
+
+
+class RoleGrant(BaseModel):
+    role: str
+
+
+def _grant_role(db: Session, user_id: uuid_lib.UUID, role_name: str) -> None:
+    role = db.execute(select(Role).where(Role.name == role_name)).scalar_one_or_none()
+    if role is None:
+        raise HTTPException(status_code=422, detail=f"unknown role: {role_name}")
+    existing = db.execute(
+        select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == role.uuid)
+    ).scalar_one_or_none()
+    if existing is None:
+        db.add(UserRole(user_id=user_id, role_id=role.uuid, grant_household_id=role.uuid))
+
+
+@users_router.post("/{user_id}/roles", response_model=UserOut)
+def grant_role(
+    user_id: uuid_lib.UUID,
+    payload: RoleGrant,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    _grant_role(db, user_id, payload.role)
+    db.commit()
+    return _user_out(db, user)
+
+
+@users_router.delete("/{user_id}/roles/{role_name}", response_model=UserOut)
+def revoke_role(
+    user_id: uuid_lib.UUID,
+    role_name: str,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    role = db.execute(select(Role).where(Role.name == role_name)).scalar_one_or_none()
+    if role is not None:
+        link = db.execute(
+            select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == role.uuid)
+        ).scalar_one_or_none()
+        if link is not None:
+            db.delete(link)
+            db.commit()
+    return _user_out(db, user)
+
+
+# ---------------------------------------------------------------------------
+# Password-login fallback (#14): proxy Keycloak's direct-access grant so the SPA
+# can sign in with username/password when the redirect flow isn't convenient.
+# ---------------------------------------------------------------------------
+auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+class PasswordLoginIn(BaseModel):
+    username: str
+    password: str
+
+
+@auth_router.post("/password-login")
+def password_login(payload: PasswordLoginIn):
+    token_url = (
+        f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
+        "/protocol/openid-connect/token"
+    )
+    data = {
+        "grant_type": "password",
+        "client_id": settings.keycloak_client_id,
+        "username": payload.username,
+        "password": payload.password,
+    }
+    try:
+        resp = httpx.post(token_url, data=data, timeout=10.0)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"Auth server unreachable: {exc}") from exc
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    body = resp.json()
+    return {
+        "access_token": body.get("access_token"),
+        "refresh_token": body.get("refresh_token"),
+        "expires_in": body.get("expires_in"),
+        "token_type": body.get("token_type", "Bearer"),
+    }
+
+
+ALL_ROUTERS = [app_config_router, prefix_router, profile_router, users_router, auth_router]

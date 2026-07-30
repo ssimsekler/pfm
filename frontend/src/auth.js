@@ -18,8 +18,23 @@ const KC_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "pfm-frontend";
 let keycloak = null;
 let authenticated = false;
 
+// Password-fallback session (#14): when Keycloak's redirect flow isn't used, the
+// SPA can sign in via the backend `/v1/auth/password-login` proxy. We keep the
+// resulting token in memory + sessionStorage and decode it for identity/roles.
+let fallbackToken = sessionStorage.getItem("pfm_fallback_token") || null;
+
 function guestUser() {
   return { name: "Guest", roles: [], authenticated: false };
+}
+
+function decodeJwt(token) {
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -61,8 +76,21 @@ export async function initAuth() {
   return authenticated;
 }
 
-/** Current user profile derived from the Keycloak token. */
+/** Current user profile derived from the Keycloak (or fallback) token. */
 export function getUser() {
+  if ((!keycloak || !authenticated || !keycloak.tokenParsed) && fallbackToken) {
+    const t = decodeJwt(fallbackToken);
+    if (t) {
+      const realmRoles = (t.realm_access && t.realm_access.roles) || [];
+      return {
+        name: t.name || t.preferred_username || t.email || "User",
+        username: t.preferred_username,
+        email: t.email,
+        roles: realmRoles,
+        authenticated: true,
+      };
+    }
+  }
   if (!keycloak || !authenticated || !keycloak.tokenParsed) {
     return guestUser();
   }
@@ -84,12 +112,35 @@ export function getUser() {
 
 /** Current bearer token, or null if not authenticated. */
 export function getToken() {
-  return keycloak && authenticated ? keycloak.token || null : null;
+  if (keycloak && authenticated && keycloak.token) return keycloak.token;
+  return fallbackToken;
 }
 
 /** Whether the current user is authenticated. */
 export function isAuthenticated() {
-  return authenticated;
+  return authenticated || Boolean(fallbackToken);
+}
+
+/**
+ * Password fallback login (#14): exchanges username/password for a token via the
+ * backend proxy to Keycloak's direct-access grant. Returns true on success.
+ */
+export async function passwordLogin(username, password) {
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  const resp = await fetch(base + "/v1/auth/password-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!resp.ok) {
+    let detail = "Invalid username or password";
+    try { detail = (await resp.json()).detail || detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  const body = await resp.json();
+  fallbackToken = body.access_token || null;
+  if (fallbackToken) sessionStorage.setItem("pfm_fallback_token", fallbackToken);
+  return Boolean(fallbackToken);
 }
 
 /** Redirect to the Keycloak login page. */
@@ -99,8 +150,14 @@ export function login() {
   }
 }
 
-/** Redirect to the Keycloak logout endpoint. */
+/** Redirect to the Keycloak logout endpoint (or clear the fallback session). */
 export function logout() {
+  if (fallbackToken) {
+    fallbackToken = null;
+    sessionStorage.removeItem("pfm_fallback_token");
+    window.location.reload();
+    return;
+  }
   if (keycloak) {
     keycloak.logout({ redirectUri: window.location.origin });
   }
@@ -113,4 +170,5 @@ export default {
   isAuthenticated,
   login,
   logout,
+  passwordLogin,
 };

@@ -49,10 +49,13 @@
       posts to `POST /v1/transfers` (dual-leg + transfer_group), cross-currency aware.
     - DONE: **in-app Help/Wiki** (A.2) [ADR #57] — `Help` page (Help nav) with collapsible sections
       incl. categorization rules, Policy 1, recurring, transfers, imports, reporting currency,
-      settings/profile. Frontend builds.
-    - TODO (deferred to a follow-up session): auth — default admin user + Users admin + password
-      fallback (#14). This is a cross-cutting Keycloak/provisioning change; everything else in the
-      Phase 11 backlog is done.
+      settings/profile.
+    - DONE: **auth — default admin + Users admin + password fallback** (#14) [ADR #58] — Keycloak
+      realm seeds a default **admin** user (pwd `admin`, Owner) + enables direct-access grant;
+      backend **Users admin API** (`/v1/users` + role grant/revoke) and **password-login proxy**
+      (`/v1/auth/password-login`); frontend **Users** screen, **"Sign in with password"** dialog,
+      and a fallback token in `auth.js`. Frontend builds; backend compiles clean.
+    - **Phase 11 Round 2 backlog is now COMPLETE.** Remaining is optional polish only (below).
   - **Batch A (DONE):** fixed blocking nested-dialog overlay (#1); refined confirmation model
     — no confirm on Save; confirm on **Cancel only if the form is dirty** (#2); resizable/
     draggable dialogs (#10); singular-title typo "Categorie" (#6); reworked value-help to a

@@ -37,7 +37,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import SettingsIcon from "@mui/icons-material/Settings";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 
-import { initAuth, getUser, login, logout } from "./auth";
+import { initAuth, getUser, login, logout, passwordLogin } from "./auth";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
 import CashFlowItems from "./pages/CashFlowItems";
@@ -49,8 +49,11 @@ import Imports from "./pages/Imports";
 import Notifications from "./pages/Notifications";
 import Configuration from "./pages/Configuration";
 import Settings from "./pages/Settings";
+import Users from "./pages/Users";
 import Help from "./pages/Help";
 import Export from "./pages/Export";
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Alert, Stack } from "@mui/material";
+import PeopleIcon from "@mui/icons-material/People";
 
 const DRAWER_WIDTH = 250;
 
@@ -76,6 +79,7 @@ const SCREENS = {
   configuration: () => <Configuration />,
   settings: () => <Settings />,
   profile: () => <Settings section="profile" />,
+  users: () => <Users />,
   help: () => <Help />,
   export: () => <Export />,
 };
@@ -117,8 +121,44 @@ const NAV = [
   { label: "Notifications", key: "notifications", icon: <NotificationsIcon /> },
   { label: "Configuration", key: "configuration", icon: <SettingsIcon /> },
   { label: "Settings", key: "settings", icon: <SettingsIcon /> },
+  { label: "Users", key: "users", icon: <PeopleIcon /> },
   { label: "Help", key: "help", icon: <HelpOutlineIcon /> },
 ];
+
+function PasswordLoginDialog({ open, onClose }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true); setError(null);
+    try {
+      await passwordLogin(username, password);
+      window.location.reload();
+    } catch (e) { setError(e.message); setBusy(false); }
+  }
+
+  return (
+    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Sign in</DialogTitle>
+      <DialogContent dividers>
+        {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <TextField label="Username" size="small" value={username}
+            onChange={(e) => setUsername(e.target.value)} autoFocus />
+          <TextField label="Password" type="password" size="small" value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button variant="contained" onClick={submit} disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
 
 function Shell({ user }) {
   const navigate = useNavigate();
@@ -126,6 +166,7 @@ function Shell({ user }) {
   const route = location.pathname.replace(/^\//, "") || "home";
   const go = (key) => navigate("/" + key);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   const navItem = (item) => (
     <ListItemButton
@@ -172,7 +213,10 @@ function Shell({ user }) {
                 <MenuItem key="logout" onClick={() => { setAnchorEl(null); logout(); }}>Sign out</MenuItem>,
               ]
             ) : (
-              <MenuItem onClick={() => { setAnchorEl(null); login(); }}>Sign in</MenuItem>
+              [
+                <MenuItem key="sso" onClick={() => { setAnchorEl(null); login(); }}>Sign in (SSO)</MenuItem>,
+                <MenuItem key="pwd" onClick={() => { setAnchorEl(null); setLoginOpen(true); }}>Sign in with password</MenuItem>,
+              ]
             )}
           </Menu>
         </Toolbar>
@@ -204,6 +248,8 @@ function Shell({ user }) {
           </List>
         </Box>
       </Drawer>
+
+      <PasswordLoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
 
       <Box component="main" sx={{ flexGrow: 1, height: "100vh", overflow: "auto", bgcolor: "background.default" }}>
         <Toolbar />

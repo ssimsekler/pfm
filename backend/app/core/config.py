@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # Keycloak / OIDC
     keycloak_url: str = "http://keycloak:8080/auth"
     keycloak_realm: str = "pfm"
+    keycloak_client_id: str = "pfm-frontend"
 
     # Object storage
     minio_endpoint: str = "objectstore:9000"
