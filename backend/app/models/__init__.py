@@ -28,3 +28,13 @@ from app.models.financial import (  # noqa: F401
     Attachment,
     CurrencyRate,
 )
+from app.models.scheduling import (  # noqa: F401
+    HolidayCalendar,
+    HolidayCalendarDay,
+    RecurrenceProfile,
+    InstallmentPlan,
+    InstallmentSchedule,
+    Loan,
+    AmortizationSchedule,
+    Goal,
+)

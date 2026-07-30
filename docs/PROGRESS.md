@@ -5,25 +5,27 @@
 
 ## Current status
 
-- **Active phase:** Phase 2 — Core financial APIs (COMPLETE) → next: Phase 3
-- **Last completed (Phase 2):** financial models (account, partner, beneficiary,
-  expense_category, cash_flow_item, transfer_group, transaction, transaction_split, tag,
-  entity_tag, attachment, currency_rate w/ validity periods); FX service (validity-period
-  lookup + inverse + convert); generic CRUD router factory; CRUD routers for accounts,
-  partners, beneficiaries, expense-categories, cash-flow-items, tags; **country + institution
-  + currency** reference routers; dedicated **transactions** router (rich filters + Policy 1);
-  **transfers** (dual-leg); **currency-rates CRUD** + `GET /api/v1/fx/convert`; **attachments**
-  upload/download via MinIO (`services/storage.py`) + **entity-tag** assignment; and the first
-  real **Alembic migration** `0001_initial` (creates all tables, enables `pg_trgm`+`btree_gist`,
-  adds the `currency_rate` GiST no-overlap exclusion constraint). Bootstrap now runs
-  `alembic upgrade head` (falls back to create_all). All 33 backend files pass syntax check.
-- **Next step:** Begin **Phase 3 — Recurrence, installments, loans, goals, income**:
-  recurrence_profile + holiday_calendar(+days) models & engine (weekly/nth-day/last-bday with
-  business-day rules), installment_plan(+schedule), loan(+amortization_schedule), goal;
-  pending-recurring list + materialize-to-transaction; wire cash_flow_item recurrence.
+- **Active phase:** Phase 3 — Recurrence, installments, loans, goals, income (COMPLETE) → next: Phase 4
+- **Last completed (Phase 3):** models (`models/scheduling.py`): holiday_calendar(+day),
+  recurrence_profile, installment_plan(+schedule), loan(+amortization_schedule), goal;
+  **recurrence engine** (`services/recurrence.py`: weekly, monthly_nth_day, monthly_last_day,
+  monthly_last_bday, quarterly, yearly; business-day rules prev/next with holiday calendars —
+  Decision #9/#13); **schedule generators** (`services/schedules.py`: equal installments +
+  fixed-rate amortization); CRUD routers for holiday-calendars (+ `/{id}/days`),
+  recurrence-profiles (+ `/{id}/occurrences` preview), installment-plans (+ `/generate`,
+  `/schedule`), loans (+ `/generate`, `/schedule`), goals; and the **recurring** router:
+  `GET /api/v1/recurring/pending?until=` (recurring cash-flow items with no txn yet) and
+  `POST /api/v1/recurring/materialize` (creates a txn with next `expense_item_seq_no`,
+  Policy 1 category inheritance — spec 1.4.1). Wired into `main.py`. Income is supported via
+  `cash_flow_item.flow_type` (Decision #17). All 37 backend files pass syntax check.
+- **Next step:** Begin **Phase 4 — Integrations & automation**: canonical connector framework
+  driven by `integration_endpoint`; FX-rate pull (Frankfurter) + stock (yfinance/AlphaVantage)
+  + crypto (CoinGecko) connectors; **LLM Gateway** (llm_provider + feature_llm_binding,
+  primary→secondary failover, master switch, PII redaction, seed default Ollama provider);
+  categorization rules engine; investment valuation refresh + history.
 - **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET /api/docs`, `/api/v1/accounts`, `/api/v1/transactions?date_from=2025-01-01`,
-  `/api/v1/institutions`, `/api/v1/fx/convert?amount=100&from_ccy=AED&to_ccy=USD`.
+  `GET /api/docs`, `/api/v1/recurrence-profiles/{id}/occurrences?until=2026-12-31`,
+  `/api/v1/loans/{id}/generate`, `/api/v1/recurring/pending?until=2026-12-31`.
 
 ## How to resume
 
@@ -48,7 +50,7 @@
   - [x] git init, first commit, attempt push to remote
 - [x] **Phase 1 — Data & platform core** (models, base mixin, id-sequence, outbox+audit, Keycloak/RBAC, code_list/code_value + seed system code lists, value-help endpoints, generic Repository with search/filter/sort/pagination; Alembic scaffolded — first real migration pending in Phase 2)
 - [x] **Phase 2 — Core financial APIs** (accounts, transactions, categories, cash_flow_items, partners, beneficiaries, currencies/rates, transfers, splits, tags, attachments, FX lookup, country/institution/currency reference routers, first Alembic migration + FX no-overlap constraint)
-- [ ] **Phase 3 — Recurrence, installments, loans, goals, income**
+- [x] **Phase 3 — Recurrence, installments, loans, goals, income** (recurrence engine w/ business-day rules + holiday calendars; installment plans + schedule; loans + amortization; goals; pending-recurring + materialize-to-transaction; income via cash_flow_item.flow_type)
 - [ ] **Phase 4 — Integrations & automation** (connector framework, FX/stock/crypto, LLM Gateway, rules engine, valuation refresh)
 - [ ] **Phase 5 — Import pipeline** (pdf/csv/xlsx → mapping → preview → commit, dedup, filename note)
 - [ ] **Phase 6 — Budgeting & reporting** (budgets, recommendations, variance, prebuilt reports, charts, SQL console)
