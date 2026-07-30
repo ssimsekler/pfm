@@ -77,11 +77,25 @@ export async function initAuth() {
       clientId: KC_CLIENT_ID,
     });
 
+    // Initialize WITHOUT onLoad:"check-sso". The silent-SSO iframe/redirect flow
+    // loops behind the dev proxy (HashRouter leaves state/code on the base URL,
+    // and the iframe session check re-triggers). We only complete a login if the
+    // URL already carries an OIDC callback (state+code from a real login); the
+    // rest of the time the app loads as guest and the user signs in explicitly
+    // (SSO button or the password dialog). This removes the redirect loop.
+    const hasCallback = (() => {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        return p.has("code") && p.has("state");
+      } catch {
+        return false;
+      }
+    })();
+
     authenticated = await keycloak.init({
-      onLoad: "check-sso",
       pkceMethod: "S256",
       checkLoginIframe: false,
-      silentCheckSsoRedirectUri: window.location.origin + "/silent-check-sso.html",
+      ...(hasCallback ? {} : { onLoad: undefined }),
     });
 
     // Clean any leftover OIDC callback params so we don't loop on re-mount.

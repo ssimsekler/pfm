@@ -12,6 +12,9 @@ export default defineConfig({
     port: 80, // matches Traefik's frontend service (http://frontend:80)
     allowedHosts: true, // accept the Host header forwarded by Traefik (localhost)
     hmr: { clientPort: 80 }, // HMR websocket goes back through Traefik on :80
+    // Bind-mounted source on Windows/Docker Desktop doesn't emit inotify events,
+    // so HMR would never see edits — poll for changes instead.
+    watch: { usePolling: true, interval: 300 },
     // Local (non-Docker) dev can still proxy the API to a local backend.
     proxy: { "/api": "http://localhost:8000" },
   },
