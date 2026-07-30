@@ -1,67 +1,124 @@
 import { useEffect, useState } from "react";
 import {
   ShellBar,
-  Card,
-  CardHeader,
-  Text,
+  ShellBarItem,
+  SideNavigation,
+  SideNavigationItem,
+  SideNavigationSubItem,
   FlexBox,
-  FlexBoxDirection,
-  BusyIndicator,
+  Avatar,
+  Popover,
+  List,
+  StandardListItem,
 } from "@ui5/webcomponents-react";
+import "@ui5/webcomponents-icons/dist/AllIcons.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+import { initAuth, getUser, login, logout } from "./auth";
+import Launchpad from "./pages/Launchpad";
+import Transactions from "./pages/Transactions";
+import EntityList from "./pages/EntityList";
+import Reports from "./pages/Reports";
+import Imports from "./pages/Imports";
+import Notifications from "./pages/Notifications";
+import Configuration from "./pages/Configuration";
 
-// Phase 0 placeholder shell. The full Fiori launchpad (tiles, routing,
-// list reports, object pages) is built in Phase 8.
+const ROUTES = {
+  home: { label: "Overview", render: (nav) => <Launchpad navigate={nav} /> },
+  transactions: { label: "Transactions", render: () => <Transactions /> },
+  accounts: { label: "Accounts", render: () => <EntityList entity="accounts" /> },
+  partners: { label: "Partners", render: () => <EntityList entity="partners" /> },
+  beneficiaries: { label: "Beneficiaries", render: () => <EntityList entity="beneficiaries" /> },
+  "expense-categories": { label: "Categories", render: () => <EntityList entity="expense-categories" /> },
+  "cash-flow-items": { label: "Cash Flow Items", render: () => <EntityList entity="cash-flow-items" /> },
+  investments: { label: "Investments", render: () => <EntityList entity="investments" /> },
+  loans: { label: "Loans", render: () => <EntityList entity="loans" /> },
+  "installment-plans": { label: "Installments", render: () => <EntityList entity="installment-plans" /> },
+  goals: { label: "Goals", render: () => <EntityList entity="goals" /> },
+  budgets: { label: "Budgets", render: () => <EntityList entity="budgets" /> },
+  reports: { label: "Reports", render: () => <Reports /> },
+  imports: { label: "Imports", render: () => <Imports /> },
+  notifications: { label: "Notifications", render: () => <Notifications /> },
+  configuration: { label: "Configuration", render: () => <Configuration /> },
+};
+
 export default function App() {
-  const [health, setHealth] = useState(null);
+  const [route, setRoute] = useState("home");
+  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState({ name: "…", roles: [] });
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/health`)
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch(() => setHealth({ status: "unreachable" }));
+    (async () => {
+      await initAuth();
+      setUser(getUser());
+      setReady(true);
+    })();
   }, []);
 
-  return (
-    <>
-      <ShellBar primaryTitle="PFM — Personal Finance Management" />
-      <FlexBox
-        direction={FlexBoxDirection.Column}
-        style={{ padding: "1rem", gap: "1rem" }}
-      >
-        <Card
-          header={
-            <CardHeader
-              titleText="Welcome"
-              subtitleText="Phase 0 — Foundation scaffold"
-            />
-          }
-        >
-          <div style={{ padding: "1rem" }}>
-            <Text>
-              This is the initial application shell. Accounts, transactions,
-              budgeting, investments, imports, and reports are delivered in
-              subsequent phases (see docs/PLAN.md).
-            </Text>
-          </div>
-        </Card>
+  const nav = (key) => setRoute(key);
 
-        <Card
-          header={<CardHeader titleText="Backend status" />}
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <ShellBar
+        primaryTitle="PFM"
+        secondaryTitle="Personal Finance Management"
+        showNotifications
+        onNotificationsClick={() => nav("notifications")}
+        profile={<Avatar icon="employee" />}
+        onProfileClick={(e) => { setProfileOpen(true); }}
+      >
+        <ShellBarItem icon="home" text="Overview" onClick={() => nav("home")} />
+        <ShellBarItem icon="add-document" text="Import" onClick={() => nav("imports")} />
+      </ShellBar>
+
+      <Popover open={profileOpen} onAfterClose={() => setProfileOpen(false)} headerText={user.name}>
+        <List onItemClick={(e) => {
+          const action = e.detail.item.dataset.action;
+          setProfileOpen(false);
+          if (action === "login") login();
+          if (action === "logout") logout();
+        }}>
+          <StandardListItem data-action="login">Sign in</StandardListItem>
+          <StandardListItem data-action="logout">Sign out</StandardListItem>
+        </List>
+      </Popover>
+
+      <FlexBox style={{ flex: 1, minHeight: 0 }}>
+        <SideNavigation
+          style={{ width: "260px", flexShrink: 0 }}
+          onSelectionChange={(e) => {
+            const key = e.detail.item.dataset.route;
+            if (key) nav(key);
+          }}
         >
-          <div style={{ padding: "1rem" }}>
-            {health ? (
-              <Text>
-                API: {health.status}
-                {health.version ? ` (v${health.version})` : ""}
-              </Text>
-            ) : (
-              <BusyIndicator active />
-            )}
-          </div>
-        </Card>
+          <SideNavigationItem text="Overview" icon="home" data-route="home" selected={route === "home"} />
+          <SideNavigationItem text="Transactions" icon="journey-arrive" data-route="transactions" selected={route === "transactions"} />
+          <SideNavigationItem text="Money" icon="wallet" expanded>
+            <SideNavigationSubItem text="Accounts" data-route="accounts" selected={route === "accounts"} />
+            <SideNavigationSubItem text="Investments" data-route="investments" selected={route === "investments"} />
+            <SideNavigationSubItem text="Loans" data-route="loans" selected={route === "loans"} />
+            <SideNavigationSubItem text="Installments" data-route="installment-plans" selected={route === "installment-plans"} />
+            <SideNavigationSubItem text="Goals" data-route="goals" selected={route === "goals"} />
+          </SideNavigationItem>
+          <SideNavigationItem text="Master Data" icon="dimension" expanded>
+            <SideNavigationSubItem text="Partners" data-route="partners" selected={route === "partners"} />
+            <SideNavigationSubItem text="Beneficiaries" data-route="beneficiaries" selected={route === "beneficiaries"} />
+            <SideNavigationSubItem text="Categories" data-route="expense-categories" selected={route === "expense-categories"} />
+            <SideNavigationSubItem text="Cash Flow Items" data-route="cash-flow-items" selected={route === "cash-flow-items"} />
+          </SideNavigationItem>
+          <SideNavigationItem text="Planning" icon="business-objects-experience" expanded>
+            <SideNavigationSubItem text="Budgets" data-route="budgets" selected={route === "budgets"} />
+            <SideNavigationSubItem text="Reports" data-route="reports" selected={route === "reports"} />
+          </SideNavigationItem>
+          <SideNavigationItem text="Imports" icon="add-document" data-route="imports" selected={route === "imports"} />
+          <SideNavigationItem text="Notifications" icon="bell" data-route="notifications" selected={route === "notifications"} />
+          <SideNavigationItem text="Configuration" icon="action-settings" data-route="configuration" selected={route === "configuration"} />
+        </SideNavigation>
+
+        <div style={{ flex: 1, overflow: "auto", padding: "1rem 1.5rem", background: "var(--sapBackgroundColor)" }}>
+          {ready ? (ROUTES[route]?.render(nav) ?? <div>Not found</div>) : <div>Loading…</div>}
+        </div>
       </FlexBox>
-    </>
+    </div>
   );
 }

@@ -5,23 +5,24 @@
 
 ## Current status
 
-- **Active phase:** Phase 7 — Notifications & scheduler (COMPLETE) → next: Phase 8
-- **Last completed (Phase 7):** `notification` model (`models/notifications.py`); **notification
-  service** (`services/notifications.py`: create in-app; optional SMTP email when
-  `app_config['smtp.enabled']` + `smtp.config`, graceful in-app fallback — Decision #20);
-  **outbox publisher** (`services/outbox_publisher.py`: relays pending `event_outbox` CloudEvents,
-  v1 log sink, marks published/failed — Decision #5); **scheduler jobs** (`services/scheduler_jobs.py`:
-  publish-outbox, installment-due & loan-due reminders); **worker** (`app/worker.py`) now runs
-  **APScheduler** (outbox every 15s; reminders hourly); **notifications API** (`api/notifications.py`:
-  list, create (dev/test), mark-read). Wired into `main.py`. All 50 backend files pass syntax check.
-- **Next step:** Begin **Phase 8 — Frontend polish & UX** (React + UI5 Web Components): OIDC login
-  (Keycloak), Fiori launchpad with KPI tiles, list-report + object pages for core entities
-  (accounts, transactions w/ filter bar, partners, categories, budgets, investments, imports wizard),
-  reports area with charts + SQL console, configuration area (code lists, LLM/integration endpoints,
-  currencies/rates, holiday calendars), global confirmation dialogs (T.9), notification center.
-- **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, then
-  `GET /api/docs`; `GET /api/v1/notifications`; `POST /api/v1/notifications {"subject":"Test"}`;
-  worker logs show `[worker] ... scheduler` and periodic `[outbox]` lines.
+- **Active phase:** Phase 8 — Frontend polish & UX (COMPLETE) → next: Phase 9
+- **Last completed (Phase 8):** React + UI5 Web Components SPA — `auth.js` (Keycloak OIDC with
+  dev fallback + token refresh), `api.js` (bearer client + upload + value-help), reusable
+  `components/DataTable.jsx` (search/sort/pagination/filter-bar slot), pages: `Launchpad` (KPI
+  tiles + balances-by-currency), `Transactions` (rich filter bar), `EntityList` (config-driven
+  list reports for accounts/partners/beneficiaries/categories/cash-flow-items/investments/loans/
+  installment-plans/goals/budgets/institutions), `Reports` (BarChart + headline figures + guarded
+  SQL console), `Imports` (upload → review rows → commit wizard), `Notifications` (center + mark
+  read), `Configuration` (code-list explorer + LLM providers + integration endpoints + currency
+  rates + holiday calendars). `App.jsx` = Fiori ShellBar + grouped SideNavigation + client routing.
+  All 9 frontend source files brace/paren-balanced. Served via nginx + Traefik in the container.
+- **Next step:** Begin **Phase 9 — Quality & delivery**: backend tests (pytest) for id-sequence,
+  FX validity lookup, recurrence engine, repository filters, import mapping; a `docker compose`
+  smoke path; export OpenAPI to `docs/`; expand README with full run/verify guide; seed/demo data;
+  tag a v1 release. Then final wrap-up.
+- **Verify:** `cd infra && cp .env.example .env && docker compose up -d --build`, open
+  `http://localhost/` (Fiori shell → Overview KPIs, Transactions filter bar, Reports chart + SQL,
+  Imports wizard, Configuration), and `http://localhost/api/docs`.
 
 ## How to resume
 
@@ -51,7 +52,7 @@
 - [x] **Phase 5 — Import pipeline** (pdf/csv/xlsx parse → rule/LLM-assisted mapping matched/new/unmapped → validation rows + amend → commit creating transactions with dedup + filename note + source_document_id)
 - [x] **Phase 6 — Budgeting & reporting** (budgets + lines + budget-vs-actual variance + recommendations; prebuilt reports: category/partner/beneficiary volume, cash position, net worth, projection — all in USD via FX; guarded read-only SQL console)
 - [x] **Phase 7 — Notifications & scheduler** (notification model + API list/create/mark-read; SMTP email w/ in-app fallback; APScheduler worker: outbox publisher + installment/loan due reminders; CloudEvents outbox relay)
-- [ ] **Phase 8 — Frontend polish & UX**
+- [x] **Phase 8 — Frontend polish & UX** (Keycloak OIDC auth + API client; Fiori ShellBar + SideNavigation shell; launchpad KPI tiles; transactions filter-bar list report; reusable DataTable (search/sort/pagination); entity lists (accounts/partners/beneficiaries/categories/cash-flow/investments/loans/installments/goals/budgets/institutions); reports w/ BarChart + guarded SQL console; imports wizard (upload→review→commit); notifications center; configuration (code lists, LLM providers, integration endpoints, currency rates, holiday calendars))
 - [ ] **Phase 9 — Quality & delivery** (tests, OpenAPI export, seed data, README, release)
 
 ## Notes / open items
