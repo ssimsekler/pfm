@@ -326,7 +326,6 @@ export const ENTITIES = {
       { name: "partner_id", label: "Partner", type: "ref", refEntity: "partners" },
       { name: "beneficiary_id", label: "Beneficiary", type: "ref", refEntity: "beneficiaries" },
       { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories" },
-      { name: "cash_flow_item_id", label: "Cash Flow Item", type: "ref", refEntity: "cash-flow-items", help: "If set, category is inherited and splitting is disabled (Policy 1)." },
       { name: "status_cv_id", label: "Status", type: "codeValue", listKey: "txn_status" },
       { name: "note", label: "Note", type: "textarea" },
     ],

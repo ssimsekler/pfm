@@ -11,7 +11,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import FilterBar from "./FilterBar";
 import { api } from "../api";
 
-export default function EntityManager({ entity, cfg, extra }) {
+export default function EntityManager({ entity, cfg, extra, rowActions, refreshSignal }) {
   const idField = cfg.idField || "uuid";
   const readOnly = Boolean(cfg.readOnly);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -23,14 +23,24 @@ export default function EntityManager({ entity, cfg, extra }) {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  const actions = readOnly
-    ? undefined
-    : (row) => (
-        <Stack direction="row" spacing={0.5}>
-          <Tooltip title="Edit"><IconButton size="small" onClick={() => setFormRecord(row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => { setError(null); setDeleteRow(row); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
-        </Stack>
-      );
+  const actions =
+    readOnly && !(rowActions && rowActions.length)
+      ? undefined
+      : (row) => (
+          <Stack direction="row" spacing={0.5}>
+            {(rowActions || []).map((a, i) => (
+              <Tooltip key={i} title={a.tooltip || ""}>
+                <IconButton size="small" color={a.color} onClick={() => a.onClick(row, refresh)}>{a.icon}</IconButton>
+              </Tooltip>
+            ))}
+            {!readOnly ? (
+              <>
+                <Tooltip title="Edit"><IconButton size="small" onClick={() => setFormRecord(row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => { setError(null); setDeleteRow(row); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
+              </>
+            ) : null}
+          </Stack>
+        );
 
   async function doDelete() {
     if (!deleteRow) return;
@@ -68,7 +78,7 @@ export default function EntityManager({ entity, cfg, extra }) {
         path={cfg.path}
         columns={cfg.columns}
         extraParams={filterParams}
-        refreshKey={refreshKey}
+        refreshKey={refreshKey + (refreshSignal || 0)}
         actions={actions}
         getRowId={(r) => r[idField]}
       />

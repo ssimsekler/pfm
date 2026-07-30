@@ -39,6 +39,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import { initAuth, getUser, login, logout } from "./auth";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
+import CashFlowItems from "./pages/CashFlowItems";
 import EntityList from "./pages/EntityList";
 import Reports from "./pages/Reports";
 import Imports from "./pages/Imports";
@@ -57,7 +58,7 @@ const SCREENS = {
   partners: () => <EntityList entity="partners" />,
   beneficiaries: () => <EntityList entity="beneficiaries" />,
   "expense-categories": () => <EntityList entity="expense-categories" />,
-  "cash-flow-items": () => <EntityList entity="cash-flow-items" />,
+  "cash-flow-items": () => <CashFlowItems />,
   investments: () => <EntityList entity="investments" />,
   loans: () => <EntityList entity="loans" />,
   "installment-plans": () => <EntityList entity="installment-plans" />,
