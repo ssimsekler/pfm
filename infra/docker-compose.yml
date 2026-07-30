@@ -48,6 +48,30 @@ services:
       timeout: 10s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    # Local LLM provider (privacy-friendly, offline-capable). Configured as an
+    # llm_provider (kind=ollama) in the app; the LLM Gateway can use it as
+    # primary or secondary. Pull a model after first start, e.g.:
+    #   docker compose exec ollama ollama pull llama3.2
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    # Uncomment to enable GPU acceleration (requires NVIDIA Container Toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     command: start-dev --import-realm --http-relative-path=/auth
@@ -79,6 +103,8 @@ services:
       BACKEND_SECRET_KEY: ${BACKEND_SECRET_KEY}
       APP_BASE_CURRENCY: ${APP_BASE_CURRENCY}
       LLM_MASTER_ENABLED: ${LLM_MASTER_ENABLED}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_DEFAULT_MODEL: ${OLLAMA_DEFAULT_MODEL}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM}
       KEYCLOAK_URL: http://keycloak:8080/auth
       MINIO_ENDPOINT: objectstore:9000
@@ -90,6 +116,8 @@ services:
       db:
         condition: service_healthy
       objectstore:
+        condition: service_started
+      ollama:
         condition: service_started
     labels:
       - traefik.enable=true
@@ -104,6 +132,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       BACKEND_SECRET_KEY: ${BACKEND_SECRET_KEY}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_DEFAULT_MODEL: ${OLLAMA_DEFAULT_MODEL}
       MINIO_ENDPOINT: objectstore:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}

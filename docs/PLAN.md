@@ -25,6 +25,7 @@ multi-currency, analytics/reporting, notifications, and configurable integration
 | Worker | Same image as backend; APScheduler + DB-backed job queue |
 | Reverse proxy | Traefik (TLS, routing) |
 | LLM | Internal LLM Gateway: primary→secondary failover, disable switches, PII redaction |
+| Local LLM | Ollama container (kind=ollama), seeded as a default configurable provider |
 | External data | FX: Frankfurter/exchangerate.host · Stocks: yfinance/Alpha Vantage · Crypto: CoinGecko (all configurable) |
 
 ## 3. Resolved Spec Inconsistencies (A.1–A.12)

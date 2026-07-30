@@ -25,6 +25,7 @@ analytics/reporting, notifications, and configurable integrations.
 | Auth | Keycloak (OIDC) |
 | Object storage | MinIO (S3-compatible) |
 | Events | Transactional outbox (CloudEvents 1.0) |
+| Local LLM | Ollama (default configurable provider) |
 | Proxy | Traefik |
 
 ## Repository layout
@@ -51,6 +52,13 @@ Services (via Traefik on http://localhost):
 - Backend API + docs: `/api`, `/api/docs`
 - Keycloak: `/auth`
 - MinIO console: `:9001`
+- Ollama (local LLM): `:11434`
+
+Pull a local model after first start (used by the LLM Gateway as a default provider):
+
+```bash
+docker compose exec ollama ollama pull llama3.2
+```
 
 ## Development phases
 
