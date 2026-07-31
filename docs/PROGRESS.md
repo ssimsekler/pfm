@@ -8,8 +8,25 @@
 
 ## Current status
 
-- **Active phase:** Phase 11 — UX bug-fix & feature pass (IN PROGRESS). Fixing reported
-  issues in batches; commit/push after each batch (per `.clinerules/docs-continuity.md`).
+- **Active phase:** Phase 11 — **Session 742** bug-fix & feature pass (IN PROGRESS).
+  **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
+  742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then
+  proceed to the next without asking (per `.clinerules/docs-continuity.md`).
+  - **742-Batch checklist:**
+    - [x] 742-Batch 1 — Auth & identity (bugs 1, 2, 3) — **DONE** [ADR #63–65]:
+      `app_user.keycloak_subject` (additive) + profile auto-provision (Bug 1); full Keycloak
+      user provisioning via `services/keycloak_admin.py` + temp password + role sync,
+      `user_role.grant_household_id` made nullable (Bug 2); password-fallback refresh token +
+      `POST /v1/auth/refresh` + `api.js` refresh-on-401 + `pfm:session-expired` re-login prompt
+      (Bug 3). Backend compiles; frontend builds.
+    - [ ] 742-Batch 2 — Data model, validation & schedule import (4, 10, 11, 12, 19, New-1)
+    - [ ] 742-Batch 3 — Reports & display (5, 22, 23)
+    - [ ] 742-Batch 4 — Settings, SMTP, FX, LLM sequence (6, 7, 8, 20, New-2)
+    - [ ] 742-Batch 5 — Investment valuation fix (new bug)
+    - [ ] 742-Batch 6 — Import intelligence & flexibility (17, 18)
+    - [ ] 742-Batch 7 — UX polish (9, 13, 14, 15, 16, 21, 24, 25)
+- **Previous Phase 11 rounds** (kept for history): UX bug-fix & feature pass rounds — fixing
+  reported issues in batches; commit/push after each batch (per `.clinerules/docs-continuity.md`).
   - **Round 2 Batch 1 (DONE):** fixed create HTTP 500 on Account/Cash Flow Item/Currency Rate
     — audit `_snapshot()` is now JSON-safe (Decimal→float) [ADR #42, #5]; **server-side derived
     level** for beneficiary/expense-category via a CRUD `pre_write` hook (depth guards, self/cycle

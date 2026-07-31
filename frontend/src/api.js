@@ -1,7 +1,30 @@
-// Thin API client for the PFM backend. Attaches the Keycloak bearer token.
-import { getToken } from "./auth";
+// Thin API client for the PFM backend. Attaches the Keycloak bearer token and
+// transparently renews the password-fallback session on a 401 (Session 742,
+// Bug 3): one silent refresh + retry; if that still fails, the fallback session
+// is cleared and a `pfm:session-expired` event is dispatched so the shell can
+// prompt re-login instead of cascading raw 401 errors on every page.
+import { getToken, refreshFallback, hasFallbackSession, clearFallbackSession } from "./auth";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+function notifySessionExpired() {
+  try {
+    window.dispatchEvent(new CustomEvent("pfm:session-expired"));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function doFetch(method, path, qs, body) {
+  const headers = { "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) headers["Authorization"] = "Bearer " + token;
+  return fetch(BASE + path + qs, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
 
 async function request(method, path, opts) {
   const { body, params } = opts || {};
@@ -14,15 +37,21 @@ async function request(method, path, opts) {
     const s = usp.toString();
     if (s) qs = "?" + s;
   }
-  const headers = { "Content-Type": "application/json" };
-  const token = getToken();
-  if (token) headers["Authorization"] = "Bearer " + token;
 
-  const resp = await fetch(BASE + path + qs, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let resp = await doFetch(method, path, qs, body);
+
+  // On 401 with a password-fallback session, try one silent refresh + retry.
+  if (resp.status === 401 && hasFallbackSession()) {
+    const renewed = await refreshFallback();
+    if (renewed) {
+      resp = await doFetch(method, path, qs, body);
+    }
+    if (resp.status === 401) {
+      clearFallbackSession();
+      notifySessionExpired();
+    }
+  }
+
   if (!resp.ok) {
     let detail = resp.statusText;
     try {

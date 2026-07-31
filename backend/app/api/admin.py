@@ -6,6 +6,7 @@
 These power the App Settings, Entity Prefixes, and My Profile screens.
 """
 
+import secrets
 import uuid as uuid_lib
 
 import httpx
@@ -19,6 +20,7 @@ from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
 from app.models.meta import AppConfig, IdSequence
 from app.models.security import AppUser, Role, UserRole
+from app.services import keycloak_admin
 
 settings = get_settings()
 
@@ -144,18 +146,56 @@ class ProfileUpdate(BaseModel):
     time_format: str | None = None
 
 
-def _get_or_create_user(db: Session, principal: Principal) -> AppUser:
-    """Resolve (or lazily create) the app_user row for the caller."""
+def _get_or_create_user(db: Session, principal: Principal) -> AppUser | None:
+    """Resolve (or lazily create) the app_user row for the caller.
+
+    Resolution order (Session 742, Bug 1):
+      1. by keycloak_subject == principal.subject
+      2. by app_user.uuid == principal.subject (legacy: uuid == sub)
+      3. by email
+    If still not found and we have a real (non-dev) identity, **create** a row so
+    profile save/read never 404s for a signed-in user.
+    """
+    subject = principal.subject if principal.subject not in (None, "dev-user") else None
     user = None
-    if principal.subject and principal.subject not in (None, "dev-user"):
-        try:
-            user = db.get(AppUser, uuid_lib.UUID(principal.subject))
-        except (ValueError, TypeError):
-            user = None
-    if user is None and principal.username:
+
+    if subject:
         user = db.execute(
-            select(AppUser).where(AppUser.email == (principal.email or ""))
+            select(AppUser).where(AppUser.keycloak_subject == subject)
         ).scalar_one_or_none()
+        if user is None:
+            try:
+                user = db.get(AppUser, uuid_lib.UUID(subject))
+            except (ValueError, TypeError):
+                user = None
+
+    if user is None and principal.email:
+        user = db.execute(
+            select(AppUser).where(AppUser.email == principal.email)
+        ).scalar_one_or_none()
+
+    if user is None and (subject or principal.username):
+        # Auto-provision a local mirror for the signed-in identity.
+        from app.services.repository import Repository
+
+        repo = Repository(AppUser, entity_type="app_user", event_domain="app_user")
+        user = repo.create(
+            db,
+            {
+                "name": principal.username or principal.email or "User",
+                "email": principal.email,
+                "keycloak_subject": subject,
+            },
+        )
+        db.commit()
+        db.refresh(user)
+
+    # Backfill the subject link if we matched by email/uuid but hadn't stored it.
+    if user is not None and subject and not getattr(user, "keycloak_subject", None):
+        user.keycloak_subject = subject
+        db.commit()
+        db.refresh(user)
+
     return user
 
 
@@ -204,16 +244,20 @@ class UserOut(BaseModel):
     email: str | None = None
     base_currency: str | None = None
     roles: list[str] = []
+    # Only populated on create when a temporary password was generated (shown once).
+    temp_password: str | None = None
 
     class Config:
         from_attributes = True
 
 
 class UserCreate(BaseModel):
-    name: str
+    username: str
+    name: str | None = None
     email: str | None = None
     base_currency: str | None = None
-    role: str | None = None  # optional role name to grant
+    role: str | None = None  # optional realm role to grant
+    password: str | None = None  # optional; a random temp password is generated if omitted
 
 
 class UserUpdate(BaseModel):
@@ -248,15 +292,49 @@ def create_user(
     db: Session = Depends(get_db),
     _: Principal = Depends(require_write),
 ):
+    """Provision a Keycloak user (full identity), then mirror locally (Session 742, Bug 2).
+
+    - Creates the Keycloak user with a temporary password (generated if not supplied).
+    - Assigns the requested realm role in Keycloak.
+    - Mirrors an `app_user` row keyed by the Keycloak subject for local display/roles.
+    Returns the temporary password once so the admin can hand it over.
+    """
     from app.services.repository import Repository
 
+    temp_password = payload.password or secrets.token_urlsafe(9)
+
+    # 1) Keycloak provisioning (surface failures as 422 with detail).
+    try:
+        subject = keycloak_admin.create_user(
+            username=payload.username,
+            email=payload.email,
+            first_name=payload.name,
+            temporary_password=temp_password,
+        )
+        if payload.role:
+            keycloak_admin.assign_realm_role(subject, payload.role)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # 2) Local mirror (keyed by the Keycloak subject).
     repo = Repository(AppUser, entity_type="app_user", event_domain="app_user")
-    user = repo.create(db, {"name": payload.name, "email": payload.email, "base_currency": payload.base_currency})
+    user = repo.create(
+        db,
+        {
+            "name": payload.name or payload.username,
+            "email": payload.email,
+            "base_currency": payload.base_currency,
+            "keycloak_subject": subject,
+        },
+    )
     if payload.role:
         _grant_role(db, user.uuid, payload.role)
     db.commit()
     db.refresh(user)
-    return _user_out(db, user)
+
+    out = _user_out(db, user)
+    out.temp_password = temp_password
+    return out
 
 
 @users_router.patch("/{user_id}", response_model=UserOut)
@@ -283,6 +361,7 @@ class RoleGrant(BaseModel):
 
 
 def _grant_role(db: Session, user_id: uuid_lib.UUID, role_name: str) -> None:
+    """Add a local user_role link (idempotent). `grant_household_id` is nullable now."""
     role = db.execute(select(Role).where(Role.name == role_name)).scalar_one_or_none()
     if role is None:
         raise HTTPException(status_code=422, detail=f"unknown role: {role_name}")
@@ -290,7 +369,7 @@ def _grant_role(db: Session, user_id: uuid_lib.UUID, role_name: str) -> None:
         select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == role.uuid)
     ).scalar_one_or_none()
     if existing is None:
-        db.add(UserRole(user_id=user_id, role_id=role.uuid, grant_household_id=role.uuid))
+        db.add(UserRole(user_id=user_id, role_id=role.uuid, grant_household_id=None))
 
 
 @users_router.post("/{user_id}/roles", response_model=UserOut)
@@ -303,6 +382,12 @@ def grant_role(
     user = db.get(AppUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
+    # Mirror the grant in Keycloak when the user is linked to a subject.
+    if getattr(user, "keycloak_subject", None):
+        try:
+            keycloak_admin.assign_realm_role(user.keycloak_subject, payload.role)
+        except keycloak_admin.KeycloakAdminError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     _grant_role(db, user_id, payload.role)
     db.commit()
     return _user_out(db, user)
@@ -318,6 +403,12 @@ def revoke_role(
     user = db.get(AppUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
+    # Mirror the revoke in Keycloak when the user is linked to a subject.
+    if getattr(user, "keycloak_subject", None):
+        try:
+            keycloak_admin.remove_realm_role(user.keycloak_subject, role_name)
+        except keycloak_admin.KeycloakAdminError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     role = db.execute(select(Role).where(Role.name == role_name)).scalar_one_or_none()
     if role is not None:
         link = db.execute(
@@ -360,6 +451,29 @@ def password_login(payload: PasswordLoginIn):
     if resp.status_code != 200:
         raise HTTPException(status_code=401, detail="Invalid username or password")
     body = resp.json()
+    return {
+        "access_token": body.get("access_token"),
+        "refresh_token": body.get("refresh_token"),
+        "expires_in": body.get("expires_in"),
+        "token_type": body.get("token_type", "Bearer"),
+    }
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str
+
+
+@auth_router.post("/refresh")
+def refresh_session(payload: RefreshIn):
+    """Exchange a refresh token for a fresh access token (Session 742, Bug 3).
+
+    Lets the SPA silently renew the password-fallback session so the app doesn't
+    cascade 401s once the short-lived access token expires.
+    """
+    try:
+        body = keycloak_admin.refresh_token(payload.refresh_token)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
     return {
         "access_token": body.get("access_token"),
         "refresh_token": body.get("refresh_token"),

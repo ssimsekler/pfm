@@ -22,6 +22,9 @@ class AppUser(BaseEntity):
 
     name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Keycloak subject (sub) — links the app_user to its Keycloak identity so the
+    # profile row can be resolved/created for any signed-in user (Session 742, Bug 1).
+    keycloak_subject: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     default_household_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         ForeignKey("household.uuid"), nullable=True
     )

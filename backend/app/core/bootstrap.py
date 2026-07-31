@@ -46,9 +46,18 @@ _ADDITIVE_COLUMNS: list[tuple[str, str, str]] = [
     ("app_user", "date_format", "VARCHAR(40)"),
     ("app_user", "number_format", "VARCHAR(40)"),
     ("app_user", "time_format", "VARCHAR(40)"),
+    # app_user ↔ Keycloak subject link (Session 742, Bug 1).
+    ("app_user", "keycloak_subject", "VARCHAR(64)"),
     # holiday_calendar weekend/week-start config (Phase 11 Batch 3, A.1).
     ("holiday_calendar", "weekend_days", "JSONB"),
     ("holiday_calendar", "week_start", "SMALLINT"),
+]
+
+# Idempotent column alterations (not just additions) for evolving models.
+_ALTER_STATEMENTS: list[str] = [
+    # user_role.grant_household_id must be nullable so role grants work in the
+    # single-user model (no household required) — Session 742, Bug 2.
+    'ALTER TABLE "{schema}"."user_role" ALTER COLUMN "grant_household_id" DROP NOT NULL',
 ]
 
 
@@ -62,6 +71,11 @@ def _apply_additive_columns() -> None:
                     f'ADD COLUMN IF NOT EXISTS "{column}" {coltype}'
                 )
             )
+        for stmt in _ALTER_STATEMENTS:
+            try:
+                conn.execute(text(stmt.format(schema=schema)))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[bootstrap] alter skipped ({stmt}): {exc}", flush=True)
 
 
 # Advisory-lock key so the API and worker containers don't run migrations/seeding

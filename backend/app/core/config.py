@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     keycloak_url: str = "http://keycloak:8080/auth"
     keycloak_realm: str = "pfm"
     keycloak_client_id: str = "pfm-frontend"
+    # Master-realm admin credentials (used by the Keycloak Admin REST API to
+    # provision users/roles for the app realm). Defaults match .env.example.
+    keycloak_admin: str = "admin"
+    keycloak_admin_password: str = "change-me-kc-admin"
 
     # Object storage
     minio_endpoint: str = "objectstore:9000"

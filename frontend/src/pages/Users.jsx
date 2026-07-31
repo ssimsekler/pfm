@@ -16,8 +16,9 @@ export default function Users() {
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState({ name: "", email: "", base_currency: "", role: "" });
+  const [draft, setDraft] = useState({ username: "", name: "", email: "", base_currency: "", role: "", password: "" });
   const [grant, setGrant] = useState({}); // user_id -> role to grant
+  const [tempPassword, setTempPassword] = useState(null); // shown once after create
 
   const load = useCallback(async () => {
     setError(null);
@@ -29,17 +30,20 @@ export default function Users() {
   useEffect(() => { load(); }, [load]);
 
   const addUser = async () => {
-    if (!draft.name) { setError("Enter a name."); return; }
-    setBusy(true); setError(null); setMsg(null);
+    if (!draft.username) { setError("Enter a username."); return; }
+    setBusy(true); setError(null); setMsg(null); setTempPassword(null);
     try {
-      await api.post("/v1/users", {
-        name: draft.name,
+      const created = await api.post("/v1/users", {
+        username: draft.username,
+        name: draft.name || null,
         email: draft.email || null,
         base_currency: draft.base_currency || null,
         role: draft.role || null,
+        password: draft.password || null,
       });
-      setDraft({ name: "", email: "", base_currency: "", role: "" });
-      setMsg("User created.");
+      setDraft({ username: "", name: "", email: "", base_currency: "", role: "", password: "" });
+      setMsg(`User “${created.name || created.uuid}” created in Keycloak.`);
+      if (created && created.temp_password) setTempPassword(created.temp_password);
       await load();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
@@ -121,8 +125,17 @@ export default function Users() {
             </TableBody>
           </Table>
 
+          {tempPassword ? (
+            <Alert severity="warning" sx={{ mt: 2 }} onClose={() => setTempPassword(null)}>
+              Temporary password (shown once — hand it to the user; they must change it on first
+              login): <code>{tempPassword}</code>
+            </Alert>
+          ) : null}
+
           <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>Add a user</Typography>
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: "wrap" }}>
+            <TextField label="Username" size="small" required value={draft.username}
+              onChange={(e) => setDraft({ ...draft, username: e.target.value })} />
             <TextField label="Name" size="small" value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             <TextField label="Email" size="small" value={draft.email}
@@ -135,13 +148,17 @@ export default function Users() {
               <MenuItem value=""><em>None</em></MenuItem>
               {ROLES.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
             </TextField>
+            <TextField label="Password (optional)" size="small" type="password" value={draft.password}
+              onChange={(e) => setDraft({ ...draft, password: e.target.value })}
+              helperText="Leave blank to auto-generate" sx={{ width: 180 }} />
             <Button variant="contained" startIcon={<AddIcon />} onClick={addUser} disabled={busy}>Add</Button>
           </Stack>
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            This manages the application’s user directory and role grants. Sign-in credentials are
-            managed by Keycloak; a default <b>admin</b> user (password <code>admin</code>) is seeded
-            for first login — change it in Keycloak.
+            Creating a user provisions a full <b>Keycloak</b> account (username, temporary password,
+            role) and mirrors it here. The user must change the temporary password on first login.
+            A default <b>admin</b> user (password <code>admin</code>) is seeded for first login —
+            change it in Keycloak.
           </Alert>
         </CardContent>
       </Card>

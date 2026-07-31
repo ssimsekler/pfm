@@ -125,7 +125,7 @@ const NAV = [
   { label: "Help", key: "help", icon: <HelpOutlineIcon /> },
 ];
 
-function PasswordLoginDialog({ open, onClose }) {
+function PasswordLoginDialog({ open, onClose, expired }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -141,8 +141,9 @@ function PasswordLoginDialog({ open, onClose }) {
 
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Sign in</DialogTitle>
+      <DialogTitle>{expired ? "Session expired — sign in again" : "Sign in"}</DialogTitle>
       <DialogContent dividers>
+        {expired ? <Alert severity="warning" sx={{ mb: 2 }}>Your session expired. Please sign in again to continue.</Alert> : null}
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           <TextField label="Username" size="small" value={username}
@@ -167,6 +168,16 @@ function Shell({ user }) {
   const go = (key) => navigate("/" + key);
   const [anchorEl, setAnchorEl] = useState(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Session-expiry handler (Session 742, Bug 3): when the API client can't renew
+  // the fallback token, it dispatches `pfm:session-expired`. Prompt re-login via
+  // the password dialog instead of cascading raw 401 errors on every page.
+  useEffect(() => {
+    const onExpired = () => { setSessionExpired(true); setLoginOpen(true); };
+    window.addEventListener("pfm:session-expired", onExpired);
+    return () => window.removeEventListener("pfm:session-expired", onExpired);
+  }, []);
 
   const navItem = (item) => (
     <ListItemButton
@@ -249,7 +260,7 @@ function Shell({ user }) {
         </Box>
       </Drawer>
 
-      <PasswordLoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <PasswordLoginDialog open={loginOpen} expired={sessionExpired} onClose={() => { setLoginOpen(false); setSessionExpired(false); }} />
 
       <Box component="main" sx={{ flexGrow: 1, height: "100vh", overflow: "auto", bgcolor: "background.default" }}>
         <Toolbar />

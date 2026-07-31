@@ -20,8 +20,10 @@ let authenticated = false;
 
 // Password-fallback session (#14): when Keycloak's redirect flow isn't used, the
 // SPA can sign in via the backend `/v1/auth/password-login` proxy. We keep the
-// resulting token in memory + sessionStorage and decode it for identity/roles.
+// resulting token + refresh token in memory + sessionStorage and decode it for
+// identity/roles. The refresh token lets us silently renew (Session 742, Bug 3).
 let fallbackToken = sessionStorage.getItem("pfm_fallback_token") || null;
+let fallbackRefreshToken = sessionStorage.getItem("pfm_fallback_refresh") || null;
 
 function guestUser() {
   return { name: "Guest", roles: [], authenticated: false };
@@ -183,8 +185,50 @@ export async function passwordLogin(username, password) {
   }
   const body = await resp.json();
   fallbackToken = body.access_token || null;
+  fallbackRefreshToken = body.refresh_token || null;
   if (fallbackToken) sessionStorage.setItem("pfm_fallback_token", fallbackToken);
+  if (fallbackRefreshToken) sessionStorage.setItem("pfm_fallback_refresh", fallbackRefreshToken);
   return Boolean(fallbackToken);
+}
+
+/**
+ * Silently renew the password-fallback session using the stored refresh token
+ * (Session 742, Bug 3). Returns the new access token, or null if renewal failed
+ * (in which case the fallback session is cleared so callers can prompt re-login).
+ */
+export async function refreshFallback() {
+  if (!fallbackRefreshToken) return null;
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  try {
+    const resp = await fetch(base + "/v1/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: fallbackRefreshToken }),
+    });
+    if (!resp.ok) throw new Error("refresh failed");
+    const body = await resp.json();
+    fallbackToken = body.access_token || null;
+    fallbackRefreshToken = body.refresh_token || fallbackRefreshToken;
+    if (fallbackToken) sessionStorage.setItem("pfm_fallback_token", fallbackToken);
+    if (fallbackRefreshToken) sessionStorage.setItem("pfm_fallback_refresh", fallbackRefreshToken);
+    return fallbackToken;
+  } catch {
+    clearFallbackSession();
+    return null;
+  }
+}
+
+/** Whether the current session is the password-fallback (vs Keycloak SSO) one. */
+export function hasFallbackSession() {
+  return Boolean(fallbackToken);
+}
+
+/** Clear the password-fallback session (in-memory + sessionStorage). */
+export function clearFallbackSession() {
+  fallbackToken = null;
+  fallbackRefreshToken = null;
+  sessionStorage.removeItem("pfm_fallback_token");
+  sessionStorage.removeItem("pfm_fallback_refresh");
 }
 
 /** Redirect to the Keycloak login page. */
@@ -197,8 +241,7 @@ export function login() {
 /** Redirect to the Keycloak logout endpoint (or clear the fallback session). */
 export function logout() {
   if (fallbackToken) {
-    fallbackToken = null;
-    sessionStorage.removeItem("pfm_fallback_token");
+    clearFallbackSession();
     window.location.reload();
     return;
   }
@@ -215,4 +258,7 @@ export default {
   login,
   logout,
   passwordLogin,
+  refreshFallback,
+  hasFallbackSession,
+  clearFallbackSession,
 };
