@@ -71,7 +71,22 @@
       list/tree stop 422-ing; `api.js` **stringifies FastAPI validation `detail` arrays** (no more
       `[object Object]`); `EntityTree` requests `limit=500` (endpoint max). (2) **Help moved to the
       top toolbar** next to Notifications and **removed from the drawer**. Backend compiles; frontend builds.
-    - **815-Batch 6 completes Session 815 — all 21 reported items delivered.**
+    - [x] 815-Batch 7 — Startup fail-safe / "Loading…" fix — **DONE** [ADR #77]:
+      the app was stuck on "Loading…" because the startup effect in `App.jsx`
+      (added in Batch 1) ran a fragile `import(/* @vite-ignore */ \`dayjs/locale/${loc}.js\`)`
+      against the browser locale (usually `en-US`, an unresolvable bare specifier
+      that misbehaves under the Vite dev server) inside a path that could leave
+      `setReady(true)` unreached. Fix: **removed runtime dayjs-locale loading**
+      (English only — dayjs built-in `en`), dropped the `dayjs`/`getTimeLocale`
+      imports from `App.jsx`, and made startup **fail-safe** — every step guarded,
+      `setReady(true)` flipped in a `finally`, plus an **8s hard-timeout** so a
+      slow/unreachable backend can never wedge the shell on "Loading…". Added an
+      app-level **ErrorBoundary** in `main.jsx` (readable message + Reload button)
+      so an uncaught render error no longer yields a blank/stuck page. Frontend
+      `npm run build` passes (13,624 modules, no errors). **Operational note:** if
+      a stale dev bundle persists, recreate the container:
+      `cd infra && docker compose up -d --force-recreate frontend` then hard-refresh.
+    - **815-Batch 7 completes Session 815 — all 21 reported items delivered + startup hardened.**
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
   742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then

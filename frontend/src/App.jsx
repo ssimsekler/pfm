@@ -51,9 +51,8 @@ import AutorenewIcon from "@mui/icons-material/Autorenew";
 import PieChartIcon from "@mui/icons-material/PieChart";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 
-import dayjs from "dayjs";
 import { initAuth, getUser, login, logout, passwordLogin } from "./auth";
-import { initFormats, getTimeLocale } from "./format";
+import { initFormats } from "./format";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
 import CashFlowItems from "./pages/CashFlowItems";
@@ -340,29 +339,32 @@ export default function App() {
   const [user, setUser] = useState({ name: "…", roles: [], authenticated: false });
 
   useEffect(() => {
+    // Fail-safe startup: the shell must always render even if auth or format
+    // resolution stalls/throws. We guard every step, flip `ready` in a finally,
+    // and add a hard timeout so a slow/unreachable backend can never leave the
+    // app stuck on "Loading…" (Session 815, Batch 7). dayjs uses its built-in
+    // "en" locale — we no longer runtime-import locale packs (English only).
+    let done = false;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        setReady(true);
+      }
+    };
+    // Hard fallback: render the shell after 8s no matter what.
+    const timer = setTimeout(finish, 8000);
     (async () => {
-      await initAuth();
-      setUser(getUser());
-      // Bug 21: resolve display formats (profile → settings → defaults) once auth is ready.
-      try { await initFormats(); } catch { /* fall back to defaults */ }
-      // Item 8: apply the resolved time locale to dayjs (best-effort dynamic import;
-      // falls back to the built-in "en" locale if the pack isn't available).
       try {
-        const loc = (getTimeLocale() || "en").toLowerCase();
-        if (loc && loc !== "en") {
-          await import(/* @vite-ignore */ `dayjs/locale/${loc}.js`).catch(async () => {
-            const base = loc.split("-")[0];
-            if (base && base !== loc) {
-              await import(/* @vite-ignore */ `dayjs/locale/${base}.js`).catch(() => {});
-              dayjs.locale(base);
-              return;
-            }
-          });
-          dayjs.locale(loc);
-        }
-      } catch { /* keep default locale */ }
-      setReady(true);
+        try { await initAuth(); } catch { /* continue as guest */ }
+        try { setUser(getUser()); } catch { /* keep default user */ }
+        // Bug 21: resolve display formats (profile → settings → defaults).
+        try { await initFormats(); } catch { /* fall back to defaults */ }
+      } finally {
+        clearTimeout(timer);
+        finish();
+      }
     })();
+    return () => clearTimeout(timer);
   }, []);
 
   if (!ready) {
