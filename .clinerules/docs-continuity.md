@@ -37,11 +37,19 @@ even on success. In PowerShell, combining streams with `2>&1` and piping to
 `RemoteException` (red text), which looks like a failure and can leave the run
 ambiguous ("stuck"). To prevent this:
 - **Do NOT** pipe git through `2>&1 | Select-Object …`. Run git as plain commands.
-- Run commit and push as **separate** commands (do not chain with `;` + a pipe).
-- Prefer `cmd /c "git push origin main 2>&1"` (returns plain text, no PowerShell
-  error-wrapping), or set `$env:GIT_REDIRECT_STDERR='2>&1'` once per session.
+- **Run each git command as its OWN separate tool call** — do **not** chain
+  `git add -A; git commit …` (or with `&&`) in a single PowerShell invocation.
+  Chaining is the usual cause of the run appearing to "get stuck": PowerShell may
+  wrap git's stderr progress as errors, and a chained `commit` with nothing to
+  commit returns a non-zero exit that stalls the combined command. Sequence:
+  1. `git add -A`  (its own call)
+  2. `git commit -m "…"`  (its own call; if it prints "nothing to commit", that's fine — continue)
+  3. `cmd /c "git push origin main 2>&1"`  (its own call — plain text, no PowerShell error-wrapping)
+- Keep commit messages **short and single-line** (no newlines, no special chars that
+  PowerShell must escape) to avoid quoting problems that hang the shell.
 - After pushing, confirm success cleanly with `git rev-parse HEAD` and `git status -sb`
-  rather than parsing the push output.
+  (each its own call) rather than parsing the push output. `## main...origin/main`
+  with no "ahead" means the push landed.
 
 ## 4. Conventions
 - ADRs are numbered incrementally (see the last number in `docs/DECISIONS.md`).
