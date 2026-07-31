@@ -62,7 +62,16 @@
       LLM Providers, Categorization Rules, Credentials), deep-linkable via `?tab=`. Backend compiles;
       frontend builds. (Minor follow-up: LLM/integration `credentials_ref` could become a store
       picker too — Email path is fully migrated.)
-    - [ ] 815-Batch 6 — Accounts numbers, tree 422 fix, Help toolbar (Items 14, 21, 2).
+    - [x] 815-Batch 6 — Accounts numbers, tree 422 fix, Help toolbar (Items 14, 21, 2) — **DONE**:
+      (14) `account` gains `iban`/`card_number`/`bank_sort_code`/`bank_account_number`/
+      `building_society_number`/`routing_number` + `other_bank_numbers` JSONB (additive); Account
+      schemas validate digits+dashes/spaces (IBAN alphanumeric); accounts form exposes them
+      (card number for credit-card accounts). (21) **root cause fixed** — `BeneficiaryOut`/
+      `ExpenseCategoryOut` `level` is now `int | None` + startup **NULL→1 backfill**, so the
+      list/tree stop 422-ing; `api.js` **stringifies FastAPI validation `detail` arrays** (no more
+      `[object Object]`); `EntityTree` requests `limit=500` (endpoint max). (2) **Help moved to the
+      top toolbar** next to Notifications and **removed from the drawer**. Backend compiles; frontend builds.
+    - **815-Batch 6 completes Session 815 — all 21 reported items delivered.**
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
   742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then

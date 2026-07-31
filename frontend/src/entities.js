@@ -104,6 +104,14 @@ export const ENTITIES = {
       { name: "opening_balance_date", label: "Opening Balance Date", type: "date" },
       { name: "institution_id", label: "Institution", type: "ref", refEntity: "institutions", required: true },
       { name: "is_active", label: "Active", type: "boolean" },
+      // Item 14: bank/account identifiers (variable length; digits/dashes; IBAN
+      // alphanumeric). Credit-card number applies to credit-card accounts.
+      { name: "iban", label: "IBAN", type: "text", help: "Alphanumeric; spaces allowed." },
+      { name: "card_number", label: "Card Number", type: "text", help: "For credit-card accounts (digits/dashes)." },
+      { name: "bank_sort_code", label: "Bank Sort Code", type: "text", help: "Digits/dashes." },
+      { name: "bank_account_number", label: "Bank Account Number", type: "text", help: "Digits/dashes." },
+      { name: "building_society_number", label: "Building Society Number", type: "text", help: "Digits/dashes." },
+      { name: "routing_number", label: "Routing Number", type: "text", help: "US routing number (digits)." },
       { name: "description", label: "Description", type: "textarea" },
     ],
   },

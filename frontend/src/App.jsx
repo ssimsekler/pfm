@@ -139,7 +139,7 @@ const NAV = [
   { label: "Configuration", key: "configuration", icon: <SyncIcon /> },
   { label: "Settings", key: "settings", icon: <SettingsIcon /> },
   { label: "Users", key: "users", icon: <PeopleIcon /> },
-  { label: "Help", key: "help", icon: <HelpOutlineIcon /> },
+  // Item 2: Help lives in the top toolbar (next to Notifications), not the drawer.
 ];
 
 const DRAWER_WIDTH_MINI = 60;
@@ -244,6 +244,12 @@ function Shell({ user }) {
           <IconButton color="inherit" onClick={() => go("notifications")} size="large">
             <NotificationsIcon />
           </IconButton>
+          {/* Item 2: Help moved from the drawer to the toolbar, next to Notifications. */}
+          <Tooltip title="Help">
+            <IconButton color="inherit" onClick={() => go("help")} size="large" aria-label="Help">
+              <HelpOutlineIcon />
+            </IconButton>
+          </Tooltip>
           <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)} size="large">
             <Avatar sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}>
               {(user.name || "U").slice(0, 1).toUpperCase()}

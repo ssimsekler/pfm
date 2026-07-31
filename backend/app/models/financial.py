@@ -21,7 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, BaseEntity
@@ -42,6 +42,16 @@ class Account(BaseEntity):
         ForeignKey("institution.uuid"), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Bank / account identifiers (Session 815, Item 14). Variable length; validated
+    # as digits + dashes/spaces (IBAN alphanumeric) at the API layer. Credit-card
+    # number applies to card accounts. `other_bank_numbers` holds country-specific extras.
+    iban: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    card_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    bank_sort_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    bank_account_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    building_society_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    routing_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    other_bank_numbers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class Partner(BaseEntity):

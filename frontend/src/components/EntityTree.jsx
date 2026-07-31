@@ -85,7 +85,9 @@ export default function EntityTree({ path, refreshKey, onEdit, onDelete }) {
     setError(null);
     try {
       // Fetch a large page so the full hierarchy is present for tree building.
-      const data = await api.get(path, { limit: 1000, offset: 0 });
+      // Item 21: the list endpoint caps `limit` at 500, so requesting 1000 used
+      // to 422; keep it within bounds (hierarchies are far smaller than 500).
+      const data = await api.get(path, { limit: 500, offset: 0 });
       const items = Array.isArray(data) ? data : data.items || [];
       setRows(items);
     } catch (e) {

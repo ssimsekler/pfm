@@ -61,6 +61,15 @@ _ADDITIVE_COLUMNS: list[tuple[str, str, str]] = [
     ("goal", "period", "VARCHAR(20)"),
     ("goal", "limit_amount", "NUMERIC(18,4)"),
     ("transaction", "goal_id", "UUID"),
+    # Account bank/identifier numbers (Session 815, Item 14). Variable length,
+    # numeric+dashes (IBAN alphanumeric); credit-card number for card accounts.
+    ("account", "iban", "VARCHAR(40)"),
+    ("account", "card_number", "VARCHAR(40)"),
+    ("account", "bank_sort_code", "VARCHAR(20)"),
+    ("account", "bank_account_number", "VARCHAR(40)"),
+    ("account", "building_society_number", "VARCHAR(40)"),
+    ("account", "routing_number", "VARCHAR(20)"),
+    ("account", "other_bank_numbers", "JSONB"),
 ]
 
 # Idempotent column alterations (not just additions) for evolving models.
@@ -68,6 +77,11 @@ _ALTER_STATEMENTS: list[str] = [
     # user_role.grant_household_id must be nullable so role grants work in the
     # single-user model (no household required) — Session 742, Bug 2.
     'ALTER TABLE "{schema}"."user_role" ALTER COLUMN "grant_household_id" DROP NOT NULL',
+    # Session 815, Item 21: backfill NULL hierarchy levels to 1 so the
+    # beneficiary/expense-category list & tree don't fail response validation
+    # (older/seeded rows created before the derive-level hook had level = NULL).
+    'UPDATE "{schema}"."beneficiary" SET "level" = 1 WHERE "level" IS NULL',
+    'UPDATE "{schema}"."expense_category" SET "level" = 1 WHERE "level" IS NULL',
 ]
 
 

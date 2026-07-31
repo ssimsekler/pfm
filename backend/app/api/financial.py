@@ -5,11 +5,13 @@ router with rich filtering (account, partner, beneficiary, category, status,
 currency, date/amount ranges) per Decision #25.
 """
 
+import re
 import uuid as uuid_lib
 from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,43 @@ from app.services.repository import Repository
 # ---------------------------------------------------------------------------
 # Account
 # ---------------------------------------------------------------------------
+# Item 14: bank/account identifiers accept digits with optional dashes/spaces;
+# IBAN is alphanumeric (spaces allowed). Empty/None passes (fields are optional).
+_DIGITS_DASH = re.compile(r"^[0-9 -]*$")
+_IBAN_RE = re.compile(r"^[A-Za-z0-9 ]*$")
+
+
+def _validate_numberish(v: str | None) -> str | None:
+    if v is None or v == "":
+        return v
+    if not _DIGITS_DASH.match(str(v)):
+        raise ValueError("only digits, spaces and dashes are allowed")
+    return v
+
+
+def _validate_iban(v: str | None) -> str | None:
+    if v is None or v == "":
+        return v
+    if not _IBAN_RE.match(str(v)):
+        raise ValueError("IBAN may contain only letters, digits and spaces")
+    return v
+
+
+class _AccountNumbersMixin:
+    """Shared validators for the account identifier fields (Item 14)."""
+
+    @field_validator("card_number", "bank_sort_code", "bank_account_number",
+                     "building_society_number", "routing_number", check_fields=False)
+    @classmethod
+    def _numberish(cls, v):
+        return _validate_numberish(v)
+
+    @field_validator("iban", check_fields=False)
+    @classmethod
+    def _iban(cls, v):
+        return _validate_iban(v)
+
+
 class AccountOut(EntityOut):
     account_type_cv_id: uuid_lib.UUID | None = None
     currency: str
@@ -30,9 +69,16 @@ class AccountOut(EntityOut):
     opening_balance_date: date | None = None
     institution_id: uuid_lib.UUID | None = None
     is_active: bool
+    iban: str | None = None
+    card_number: str | None = None
+    bank_sort_code: str | None = None
+    bank_account_number: str | None = None
+    building_society_number: str | None = None
+    routing_number: str | None = None
+    other_bank_numbers: dict | None = None
 
 
-class AccountCreate(ORMModel):
+class AccountCreate(_AccountNumbersMixin, ORMModel):
     name: str
     description: str | None = None
     # Type & Institution are mandatory for an account (Session 742, Bug 4).
@@ -42,9 +88,17 @@ class AccountCreate(ORMModel):
     opening_balance_date: date | None = None
     institution_id: uuid_lib.UUID
     is_active: bool = True
+    # Item 14: bank/account identifiers (all optional).
+    iban: str | None = None
+    card_number: str | None = None
+    bank_sort_code: str | None = None
+    bank_account_number: str | None = None
+    building_society_number: str | None = None
+    routing_number: str | None = None
+    other_bank_numbers: dict | None = None
 
 
-class AccountUpdate(ORMModel):
+class AccountUpdate(_AccountNumbersMixin, ORMModel):
     name: str | None = None
     description: str | None = None
     account_type_cv_id: uuid_lib.UUID | None = None
@@ -53,6 +107,13 @@ class AccountUpdate(ORMModel):
     opening_balance_date: date | None = None
     institution_id: uuid_lib.UUID | None = None
     is_active: bool | None = None
+    iban: str | None = None
+    card_number: str | None = None
+    bank_sort_code: str | None = None
+    bank_account_number: str | None = None
+    building_society_number: str | None = None
+    routing_number: str | None = None
+    other_bank_numbers: dict | None = None
 
 
 account_router = build_crud_router(
@@ -99,7 +160,9 @@ partner_router = build_crud_router(
 # ---------------------------------------------------------------------------
 class BeneficiaryOut(EntityOut):
     parent_id: uuid_lib.UUID | None = None
-    level: int
+    # Item 21: nullable so rows created before the derive-level hook (or seeded
+    # with NULL) don't fail response validation → the tree/list no longer 422s.
+    level: int | None = None
 
 
 class BeneficiaryCreate(ORMModel):
@@ -162,7 +225,7 @@ beneficiary_router = build_crud_router(
 # ---------------------------------------------------------------------------
 class ExpenseCategoryOut(EntityOut):
     parent_id: uuid_lib.UUID | None = None
-    level: int
+    level: int | None = None  # Item 21: nullable (see BeneficiaryOut).
 
 
 class ExpenseCategoryCreate(ORMModel):

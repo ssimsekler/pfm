@@ -45,6 +45,17 @@ Chronological log of key decisions. Newest decisions appended at the bottom.
 > now **MUI tabs** (Code Lists / Currency Rates+FX / Recurrence / Holiday Calendars /
 > Integrations / LLM Providers / Categorization Rules / Credentials), deep-linkable via `?tab=`
 > (22).
+>
+> **Session 815 — Batch 6 (Items 14, 21, 2):** `account` gains bank/identifier columns
+> `iban`/`card_number`/`bank_sort_code`/`bank_account_number`/`building_society_number`/
+> `routing_number` + `other_bank_numbers` JSONB (additive), validated as **digits+dashes/spaces**
+> (IBAN alphanumeric); the accounts form exposes them (card number for credit-card accounts) (14).
+> **Item 21 root cause fixed**: `BeneficiaryOut`/`ExpenseCategoryOut.level` is now `int | None`
+> and startup backfills `NULL → 1`, so the beneficiary/category **list & tree stop returning
+> 422** (older/seeded rows had `level = NULL`); `api.js` now **stringifies FastAPI validation
+> `detail` arrays** so errors never render as `[object Object]`; `EntityTree` requests
+> `limit=500` (the endpoint's max). **Help moved to the top toolbar** next to Notifications and
+> removed from the drawer (2). **Session 815 complete — all 21 reported items delivered.**
 
 | # | Decision | Rationale |
 |---|---|---|

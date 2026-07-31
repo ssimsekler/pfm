@@ -15,6 +15,29 @@ function notifySessionExpired() {
   }
 }
 
+// Item 21: FastAPI 422 validation errors return `detail` as an **array of
+// objects** ({loc, msg, type}); rendering that directly showed "[object Object]".
+// Normalize any detail shape (string | object | array) into readable text.
+function formatDetail(detail) {
+  if (detail == null) return null;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => {
+        if (typeof d === "string") return d;
+        if (d && typeof d === "object") {
+          const loc = Array.isArray(d.loc) ? d.loc.filter((x) => x !== "body").join(".") : "";
+          const msg = d.msg || d.detail || JSON.stringify(d);
+          return loc ? `${loc}: ${msg}` : msg;
+        }
+        return String(d);
+      })
+      .join("; ");
+  }
+  if (typeof detail === "object") return detail.msg || JSON.stringify(detail);
+  return String(detail);
+}
+
 async function doFetch(method, path, qs, body) {
   const headers = { "Content-Type": "application/json" };
   const token = getToken();
@@ -56,7 +79,7 @@ async function request(method, path, opts) {
     let detail = resp.statusText;
     try {
       const err = await resp.json();
-      detail = err.detail || JSON.stringify(err);
+      detail = formatDetail(err.detail) || JSON.stringify(err);
     } catch (_) {
       /* ignore */
     }
