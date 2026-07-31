@@ -138,6 +138,24 @@
       integration endpoint's `credentials_ref` (crypto + configured endpoints). Editing a credential
       clears the OAuth2 token cache. `authorization_code` (interactive) is intentionally not run
       headless. Verified: backend imports clean (no circular); health/login unaffected.
+    - [x] 815-Batch 12 — Two import modes (LLM statement vs deterministic bulk) + goal tagging —
+      **DONE** [ADR #83]: `POST /v1/imports` gains a **`mode`** form field. **statement**
+      (default) reads messy real-world files (PDF/CSV/XLSX) with the **LLM** (new
+      `services/import_llm.py`: flatten→prompt with categorization rules + partners/categories +
+      learned mapping-memory→strict-JSON transactions), then flows through the existing
+      `import_mapper`+review+commit; the table/heuristic parser is **no longer used for
+      statements**, so statement import **requires the LLM master switch + a provider** (clear 422
+      otherwise). **bulk** loads clean structured CSV/XLSX with **mnemonic-ID columns**
+      (account/partner/expense_category/beneficiary/goal + direct fields) resolved
+      **deterministically** (`services/import_bulk.py::resolve_rows`, `direction`→`direction_cv_id`,
+      per-row error flags). Both land on the review screen; `commit_import` writes bulk rows directly
+      via `values_for_commit()` (skips errored), while statement rows keep dedup + memory learning +
+      **`account_hint`** resolution (name/IBAN/masked-last-4→account, else default). New
+      `GET /v1/imports/bulk/template` (CSV download). Frontend `Imports.jsx` gains a **Statement/Bulk
+      toggle**, template download + info banners, and two review grids (statement suggestions vs bulk
+      resolved-labels with error flags). Goals: form dropped **Linked Account**; transaction form
+      gained a **Goal picker** (`transaction.goal_id`). Frontend builds (2328 modules); backend
+      syntax OK.
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
   742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then

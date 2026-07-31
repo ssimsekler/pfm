@@ -278,7 +278,8 @@ export const ENTITIES = {
       { name: "target_amount", label: "Target Amount", type: "number", required: true },
       { ...CURRENCY_FIELD },
       { name: "target_date", label: "Target Date", type: "date" },
-      { name: "linked_account_id", label: "Linked Account", type: "ref", refEntity: "accounts" },
+      // Batch 12: goals are tracked via **goal-tagged transactions** (see the
+      // Goal picker on the transaction form), not a linked account.
       // For "cap_expense" goals (e.g. "Keep fuel < 1000/month").
       { name: "expense_category_id", label: "Category (cap)", type: "ref", refEntity: "expense-categories", help: "Category to cap for a 'cap expense' goal." },
       { name: "period", label: "Period (cap)", type: "select", options: [
@@ -349,6 +350,8 @@ export const ENTITIES = {
       { name: "beneficiary_id", label: "Beneficiary", type: "ref", refEntity: "beneficiaries" },
       { name: "expense_category_id", label: "Category", type: "ref", refEntity: "expense-categories", lockWhenItemLinked: true },
       { name: "status_cv_id", label: "Status", type: "codeValue", listKey: "txn_status" },
+      // Batch 12: tag a transaction to a goal (feeds save-to-target progress).
+      { name: "goal_id", label: "Goal", type: "ref", refEntity: "goals", help: "Link this transaction to a savings goal (optional)." },
       { name: "note", label: "Note", type: "textarea" },
     ],
   },
