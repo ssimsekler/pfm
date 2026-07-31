@@ -95,6 +95,20 @@
       `App.jsx` **guest guard** auto-opens the password login dialog when the shell renders
       unauthenticated. After sign-in the app reloads and lists populate. Frontend builds.
     - **815-Batch 7 completes Session 815 — all 21 reported items delivered + startup hardened.**
+    - [x] 815-Batch 10 — FX / formatting / Settings / Credentials — **DONE** [ADR #81]:
+      **FX** refresh (422 for every pair) fixed — a seeded `FX_RATES` endpoint pointed at
+      `api.frankfurter.app` (301-redirects, not er-api-shaped) overriding the working default and
+      exchangerate.host needs a key; now always try `open.er-api.com` first, `follow_redirects=True`
+      on all connector calls, er-api response-shape guard, startup migration of the stored endpoint;
+      verified AED/USD 201. **High-precision** `formatHighPrecision` rounds to exactly N dp then trims
+      (7 no longer shows 8); profile save re-runs `initFormats()` + reload so **lists** honor it too.
+      **Settings** → MUI tabs (App/Email/Prefixes/Profile, `?tab=`); App Settings **hides** internal
+      secrets (`auth.local_admin`, `auth.reset.*`) and renders JSON safely (no `[object Object]`).
+      **Account dialog** — `EntityForm` `section` grouping; bank/identifier fields in a
+      "Bank / identifiers" section. **Credentials Store** — seeded reusable categories (API Key,
+      Basic Auth, Bearer Token, OAuth2, LLM Provider Key); LLM Providers + Integration Endpoints
+      `credentials_ref` is a **credential picker** (`credentialRef`); CredentialsManager preserves
+      blank values. OAuth2 is **store-only** for now (runtime token acquisition is a follow-up).
     - [x] 815-Batch 8 — App-down startup crash fix — **DONE** [ADR #79]: new tables added after
       `0001_initial` (`credential_category`/`credential`, Batch 5) were never created on existing
       DBs (alembic at head = no-op; `create_all` only ran on migration failure), so `seed_all`

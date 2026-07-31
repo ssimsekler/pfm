@@ -50,10 +50,17 @@ function CredentialDialog({ categories, record, onClose, onSaved }) {
   const save = async () => {
     setBusy(true); setError(null);
     try {
+      // Batch 10: send a COMPLETE values map for every param in the schema so
+      // cleared/blank fields are preserved (previously untouched keys could be
+      // dropped, "removing" blanks). Empty strings are sent as-is.
+      const fullValues = {};
+      for (const p of params) {
+        fullValues[p.key] = values[p.key] ?? "";
+      }
       if (isEdit) {
-        await api.patch(`/v1/credentials/${record.uuid}`, { name, values });
+        await api.patch(`/v1/credentials/${record.uuid}`, { name, values: fullValues });
       } else {
-        await api.post("/v1/credentials", { name, category_id: categoryId, values });
+        await api.post("/v1/credentials", { name, category_id: categoryId, values: fullValues });
       }
       onSaved();
     } catch (e) { setError(e.message); setBusy(false); }

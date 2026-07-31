@@ -14,6 +14,7 @@ import {
   Box,
   FormHelperText,
   MenuItem,
+  Typography,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
@@ -38,6 +39,36 @@ function singular(t) {
   if (t.endsWith("ies")) return t.slice(0, -3) + "y";
   if (t.endsWith("s")) return t.slice(0, -1);
   return t;
+}
+
+// Batch 10: a credential picker backed by the Credentials Store (/v1/credentials).
+// Selects by mnemonic_id. Optional `field.category` filters to a category_key.
+function CredentialRefField({ field, value, onChange, label, required, disabled }) {
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    api.get("/v1/credentials").then((all) => {
+      if (!alive) return;
+      const list = (all || []).filter(
+        (c) => !field.category || c.category_key === field.category
+      );
+      setRows(list);
+    }).catch(() => setRows([]));
+    return () => { alive = false; };
+  }, [field.category]);
+  return (
+    <TextField label={label} select value={value ?? ""} fullWidth size="small"
+      required={required} disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      helperText={rows.length === 0 ? "No credentials yet — add one under Configuration → Credentials." : undefined}>
+      <MenuItem value=""><em>None</em></MenuItem>
+      {rows.map((c) => (
+        <MenuItem key={c.mnemonic_id} value={c.mnemonic_id}>
+          {c.name} ({c.category_key})
+        </MenuItem>
+      ))}
+    </TextField>
+  );
 }
 
 function initialValues(fields, record) {
@@ -162,6 +193,14 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
         </TextField>
       );
     }
+    if (f.type === "credentialRef") {
+      // Batch 10: pick a Credentials Store entry (by mnemonic_id). Optionally
+      // filter to a category via f.category (e.g. "llm_provider").
+      return (
+        <CredentialRefField field={f} value={val} onChange={(v) => setField(f.name, v)}
+          label={f.label} required={f.required} disabled={disabled} />
+      );
+    }
     if (f.type === "codeValue" || f.type === "ref") {
       const exclude = f.refEntity === entity ? selfExclude : undefined;
       return (
@@ -250,17 +289,46 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
         <DialogTitle>{`${isEdit ? "Edit" : "Create"} ${singular(cfg.title)}`}</DialogTitle>
         <DialogContent dividers>
           {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, mt: 0.5 }}>
-            {cfg.fields.map((f) => {
-              const full = f.type === "textarea" || f.type === "json";
-              return (
-                <Box key={f.name} sx={{ gridColumn: full ? "1 / -1" : "auto" }}>
-                  {renderField(f)}
-                  {f.help ? <FormHelperText>{f.help}</FormHelperText> : null}
+          {/* Batch 10: group fields into titled sections. A field's optional
+              `section` label buckets it; ungrouped fields render first. This lets
+              e.g. the Account dialog place all the bank/identifier numbers in
+              their own "Bank / identifiers" section. */}
+          {(() => {
+            const groups = [];
+            const byLabel = new Map();
+            for (const f of cfg.fields) {
+              const label = f.section || "";
+              if (!byLabel.has(label)) {
+                const g = { label, fields: [] };
+                byLabel.set(label, g);
+                groups.push(g);
+              }
+              byLabel.get(label).fields.push(f);
+            }
+            // Keep the default (unlabeled) group first, then the rest in order.
+            groups.sort((a, b) => (a.label === "" ? -1 : b.label === "" ? 1 : 0));
+            return groups.map((g, gi) => (
+              <Box key={g.label || "_default"} sx={{ mt: gi === 0 ? 0.5 : 2 }}>
+                {g.label ? (
+                  <Typography variant="subtitle2" color="text.secondary"
+                    sx={{ mb: 1, mt: 1, borderTop: 1, borderColor: "divider", pt: 1.5 }}>
+                    {g.label}
+                  </Typography>
+                ) : null}
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                  {g.fields.map((f) => {
+                    const full = f.type === "textarea" || f.type === "json";
+                    return (
+                      <Box key={f.name} sx={{ gridColumn: full ? "1 / -1" : "auto" }}>
+                        {renderField(f)}
+                        {f.help ? <FormHelperText>{f.help}</FormHelperText> : null}
+                      </Box>
+                    );
+                  })}
                 </Box>
-              );
-            })}
-          </Box>
+              </Box>
+            ));
+          })()}
           {cfg.hasSplits ? (
             <SplitEditor amount={values.amount} rows={splits} onChange={setSplitsDirty} disabled={splitsDisabled} />
           ) : null}

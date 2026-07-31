@@ -29,6 +29,7 @@ def seed_all(db: Session) -> None:
     _seed_integration_endpoints(db)
     _seed_expense_categories(db)
     _seed_credentials(db)
+    _seed_generic_credential_categories(db)  # Batch 10: API/OAuth2/Basic/Bearer/LLM
     # Session 815, Batch 9: seed the Keycloak-independent local admin credential
     # (hashed) so there's always a login that works without Keycloak.
     try:
@@ -53,6 +54,68 @@ _EMAIL_CATEGORY_PARAMS = [
     {"key": "from", "label": "From", "type": "string"},
     {"key": "recipient", "label": "Default recipient", "type": "string"},
 ]
+
+# Reusable credential categories (Batch 10) — for API endpoints, OAuth2 flows,
+# username/password and LLM provider keys. The dynamic form (CredentialsManager)
+# renders each param by type; `sensitive: true` fields are masked on read.
+_GENERIC_CATEGORIES = [
+    ("api_key", "API Key", [
+        {"key": "api_key", "label": "API key", "type": "password", "sensitive": True, "required": True},
+        {"key": "header_name", "label": "Header name", "type": "string",
+         "placeholder": "Authorization or X-API-Key"},
+        {"key": "query_param", "label": "Query param name", "type": "string",
+         "placeholder": "apikey (if sent as a query param)"},
+    ]),
+    ("basic_auth", "Basic Auth (username/password)", [
+        {"key": "username", "label": "Username", "type": "string", "required": True},
+        {"key": "password", "label": "Password", "type": "password", "sensitive": True, "required": True},
+    ]),
+    ("bearer_token", "Bearer Token", [
+        {"key": "token", "label": "Bearer token", "type": "password", "sensitive": True, "required": True},
+    ]),
+    ("oauth2", "OAuth2", [
+        {"key": "grant_type", "label": "Grant type", "type": "enum",
+         "options": ["client_credentials", "password", "authorization_code", "refresh_token"],
+         "required": True},
+        {"key": "token_url", "label": "Token URL", "type": "string", "required": True,
+         "placeholder": "https://issuer/oauth/token"},
+        {"key": "client_id", "label": "Client ID", "type": "string", "required": True},
+        {"key": "client_secret", "label": "Client secret", "type": "password", "sensitive": True},
+        {"key": "scope", "label": "Scope", "type": "string", "placeholder": "space-separated scopes"},
+        {"key": "audience", "label": "Audience", "type": "string"},
+        # Fields used by the password / authorization_code grants:
+        {"key": "username", "label": "Username (password grant)", "type": "string"},
+        {"key": "password", "label": "Password (password grant)", "type": "password", "sensitive": True},
+        {"key": "authorize_url", "label": "Authorize URL (auth-code grant)", "type": "string"},
+        {"key": "redirect_uri", "label": "Redirect URI (auth-code grant)", "type": "string"},
+        {"key": "refresh_token", "label": "Refresh token", "type": "password", "sensitive": True},
+    ]),
+    ("llm_provider", "LLM Provider Key", [
+        {"key": "api_key", "label": "API key", "type": "password", "sensitive": True, "required": True},
+        {"key": "org_id", "label": "Organization ID", "type": "string"},
+        {"key": "base_url", "label": "Base URL (override)", "type": "string",
+         "placeholder": "https://api.openai.com/v1"},
+    ]),
+]
+
+
+def _seed_generic_credential_categories(db: Session) -> None:
+    """Seed reusable credential categories (idempotent). Keeps param schemas
+    current on re-run so new fields appear without a reset (Batch 10)."""
+    for key, name, params in _GENERIC_CATEGORIES:
+        cat = db.execute(
+            select(CredentialCategory).where(CredentialCategory.category_key == key)
+        ).scalar_one_or_none()
+        if cat is None:
+            db.add(CredentialCategory(
+                mnemonic_id=next_mnemonic(db, "credential_category"),
+                name=name, category_key=key, params=params, is_system=True,
+            ))
+        else:
+            cat.params = params
+            if not cat.name:
+                cat.name = name
+    db.flush()
 
 
 def _seed_credentials(db: Session) -> None:
