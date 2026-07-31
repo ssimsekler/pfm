@@ -119,18 +119,23 @@ export default function Imports() {
 
               <Table size="small">
                 <TableHead>
-                  <TableRow><TableCell>Date</TableCell><TableCell>Amount</TableCell><TableCell>Currency</TableCell><TableCell>Partner</TableCell><TableCell>Status</TableCell><TableCell>Committed</TableCell></TableRow>
+                  <TableRow><TableCell>Date</TableCell><TableCell>Amount</TableCell><TableCell>Currency</TableCell><TableCell>Partner</TableCell><TableCell>Suggested category</TableCell><TableCell>Account</TableCell><TableCell>Committed</TableCell></TableRow>
                 </TableHead>
                 <TableBody>
                   {rows.map((r) => {
                     const mv = r.mapped_values || {};
+                    // Bug 17/18: surface the learned/LLM category suggestion and the
+                    // per-row deduced account so the intelligence is visible on review.
+                    const suggested = mv.category_name || mv.suggested_category_name || "";
+                    const acct = mv.account || mv.iban || mv.account_number || "";
                     return (
                       <TableRow key={r.uuid}>
                         <TableCell>{mv.date || ""}</TableCell>
                         <TableCell>{mv.amount ?? ""}</TableCell>
                         <TableCell>{mv.currency || ""}</TableCell>
                         <TableCell>{mv.partner_name || mv.partner_name_new || mv.partner || ""}</TableCell>
-                        <TableCell>{r.mapping_status_cv_id ? "mapped" : ""}</TableCell>
+                        <TableCell>{suggested}</TableCell>
+                        <TableCell>{acct}</TableCell>
                         <TableCell>{r.target_txn_id ? "✓" : ""}</TableCell>
                       </TableRow>
                     );
