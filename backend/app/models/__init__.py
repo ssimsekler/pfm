@@ -48,7 +48,7 @@ from app.models.automation import (
     ValuationHistory,
 )
 from app.models.budgeting import Budget, BudgetLine
-from app.models.imports import DocumentImport, DocumentImportRow
+from app.models.imports import DocumentImport, DocumentImportRow, ImportMappingMemory
 from app.models.notifications import Notification
 
 __all__ = [

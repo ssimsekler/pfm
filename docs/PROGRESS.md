@@ -48,7 +48,12 @@
       `POST …/refresh-valuation` (now with `on`) returns a **helpful 422** instead of the
       opaque message; ValuationDialog passes the chosen "As of" date. Backend compiles;
       frontend builds.
-    - [ ] 742-Batch 6 — Import intelligence & flexibility (17, 18)
+    - [x] 742-Batch 6 — Import intelligence & flexibility (17, 18) — **DONE** [ADR #74]:
+      new `import_mapping_memory` table + `import_mapper.record_memory` (learns
+      source_text→partner/category, `accept_count`) and `map_row` recommends the most-frequent
+      mapping; LLM-assisted category hint (gated by `llm.master_enabled`); per-row account
+      deduced from `account`/`iban`/`account_number` with fallback to the commit default (Bug 18);
+      `commit_import` records memory + books per-row account. Backend compiles.
     - [ ] 742-Batch 7 — UX polish (9, 13, 14, 15, 16, 21, 24, 25)
 - **Previous Phase 11 rounds** (kept for history): UX bug-fix & feature pass rounds — fixing
   reported issues in batches; commit/push after each batch (per `.clinerules/docs-continuity.md`).

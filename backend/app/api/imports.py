@@ -248,18 +248,24 @@ def commit_import(
             partner = _partner_repo.create(db, {"name": mv["partner_name_new"]})
             partner_id = str(partner.uuid)
 
+        # Bug 18: per-row account deduced during mapping (mv.account_id), else the
+        # commit's default account.
+        account_id = mv.get("account_id") or str(payload.account_id)
+
+        category_id = mv.get("expense_category_id")
+
         note = f"Imported from {doc.original_filename} (import {doc.mnemonic_id})"
         txn = _txn_repo.create(
             db,
             {
                 "name": mv.get("description") or mv.get("partner_name") or doc.original_filename,
-                "account_id": payload.account_id,
+                "account_id": uuid_lib.UUID(account_id) if isinstance(account_id, str) else account_id,
                 "txn_date": txn_date,
                 "amount": amount,
                 "currency": currency,
                 "partner_id": uuid_lib.UUID(partner_id) if partner_id else None,
                 "expense_category_id": (
-                    uuid_lib.UUID(mv["expense_category_id"]) if mv.get("expense_category_id") else None
+                    uuid_lib.UUID(category_id) if category_id else None
                 ),
                 "source_document_id": doc.uuid,
                 "note": note,
@@ -267,6 +273,15 @@ def commit_import(
         )
         row.target_txn_id = txn.uuid
         created += 1
+
+        # Bug 17: learn from the accepted mapping (statement text → partner/category).
+        source_text = (mv.get("description") or mv.get("partner") or "").strip()
+        import_mapper.record_memory(
+            db,
+            source_text,
+            uuid_lib.UUID(partner_id) if partner_id else None,
+            uuid_lib.UUID(category_id) if category_id else None,
+        )
 
     _import_repo.update(db, doc, {"status_cv_id": _cv(db, "import_status", "committed")})
     db.commit()
