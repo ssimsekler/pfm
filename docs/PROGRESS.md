@@ -28,7 +28,12 @@
       `GET /v1/goals/{id}/progress` (Bug 19); CSV schedule import for loans & installments
       (`…/schedule/import`) + ScheduleDialog "Import CSV" (New-1); `EntityForm` gained a
       `select` field type. Backend compiles; frontend builds.
-    - [ ] 742-Batch 3 — Reports & display (5, 22, 23)
+    - [x] 742-Batch 3 — Reports & display (5, 22, 23) — **DONE** [ADR #71]:
+      `volume_by_field` resolves partner/beneficiary names → `label` (Bug 5); budget-line
+      UUID→label already done in Batch 2 (Bug 22); new `cash_projection` service +
+      `GET /v1/reports/cash-projection?budget_id=&months=` + Reports **Cash Projection**
+      multi-line chart (month-end cash/investments/loans/net) (Bug 23). Backend compiles;
+      frontend builds.
     - [ ] 742-Batch 4 — Settings, SMTP, FX, LLM sequence (6, 7, 8, 20, New-2)
     - [ ] 742-Batch 5 — Investment valuation fix (new bug)
     - [ ] 742-Batch 6 — Import intelligence & flexibility (17, 18)

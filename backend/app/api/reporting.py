@@ -263,6 +263,21 @@ def report_net_worth(
     return reporting.net_worth(db, as_of)
 
 
+@report_router.get("/cash-projection")
+def report_cash_projection(
+    budget_id: uuid_lib.UUID | None = Query(None),
+    months: int = Query(12, ge=1, le=120),
+    db: Session = Depends(get_db),
+    _: Principal = Depends(get_current_principal),
+):
+    """Month-end cash/investments/loans/net projection for N months (Bug 23).
+
+    Optionally driven by a budget's monthly net flow; loan balances draw down using
+    generated amortization schedules.
+    """
+    return reporting.cash_projection(db, budget_id, months)
+
+
 @report_router.get("/projection")
 def report_projection(
     budget_id: uuid_lib.UUID,

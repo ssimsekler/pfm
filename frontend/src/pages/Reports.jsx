@@ -133,6 +133,70 @@ function BudgetVsActual() {
   );
 }
 
+function CashProjection() {
+  const [budgets, setBudgets] = useState([]);
+  const [budgetId, setBudgetId] = useState("");
+  const [months, setMonths] = useState(12);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get("/v1/budgets", { limit: 100 }).then((r) => setBudgets(r.items || [])).catch(() => setBudgets([]));
+  }, []);
+
+  const run = async () => {
+    setLoading(true); setError(null);
+    try {
+      const r = await api.get("/v1/reports/cash-projection", { budget_id: budgetId || undefined, months });
+      setData(r);
+    } catch (e) { setError(e.message); setData(null); }
+    finally { setLoading(false); }
+  };
+
+  const chartData = (data?.series || []).map((s) => ({
+    month: s.month,
+    cash: Number(s.cash) || 0,
+    investments: Number(s.investments) || 0,
+    loans: Number(s.loans) || 0,
+    net: Number(s.net) || 0,
+  }));
+
+  return (
+    <Card>
+      <CardHeader title="Cash Projection" subheader="Month-end cash / investments / loans / net (reporting currency)" />
+      <CardContent>
+        <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: "wrap" }} alignItems="center">
+          <TextField select size="small" label="Budget (net flow)" value={budgetId}
+            onChange={(e) => setBudgetId(e.target.value)} sx={{ minWidth: 240 }}>
+            <MenuItem value=""><em>None (balances only)</em></MenuItem>
+            {budgets.map((b) => <MenuItem key={b.uuid} value={b.uuid}>{b.name}</MenuItem>)}
+          </TextField>
+          <TextField type="number" size="small" label="Months" value={months}
+            onChange={(e) => setMonths(Math.max(1, Math.min(120, Number(e.target.value) || 1)))}
+            sx={{ width: 120 }} inputProps={{ min: 1, max: 120 }} />
+          <Button variant="contained" onClick={run} disabled={loading}>{loading ? "Computing…" : "Project"}</Button>
+        </Stack>
+        {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
+        {chartData.length > 0 ? (
+          <Box sx={{ height: 320 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" /><YAxis /><RTooltip /><Legend />
+                <Line type="monotone" dataKey="cash" stroke="#1e88e5" />
+                <Line type="monotone" dataKey="investments" stroke="#2e7d32" />
+                <Line type="monotone" dataKey="loans" stroke="#c62828" />
+                <Line type="monotone" dataKey="net" stroke="#0a3d62" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : <Typography color="text.secondary">Pick a budget (optional) and months, then Project.</Typography>}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Reports() {
   const [cash, setCash] = useState(null);
   const [worth, setWorth] = useState(null);
@@ -189,6 +253,8 @@ export default function Reports() {
         <Grid item xs={12} md={6}><MonthlyTrend /></Grid>
         <Grid item xs={12} md={6}><BudgetVsActual /></Grid>
       </Grid>
+
+      <Box sx={{ mb: 1 }}><CashProjection /></Box>
 
       <Card sx={{ mt: 2 }}>
         <CardHeader title="SQL Console" subheader="Read-only · single SELECT · limited rows" />
