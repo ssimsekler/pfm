@@ -13,6 +13,7 @@ import {
   Alert,
   Box,
   FormHelperText,
+  MenuItem,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
@@ -145,6 +146,15 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
       return (
         <TextField label={f.label} type="number" value={val ?? ""} onChange={(e) => setField(f.name, e.target.value)}
           fullWidth size="small" required={f.required} disabled={disabled} />
+      );
+    }
+    if (f.type === "select") {
+      return (
+        <TextField label={f.label} select value={val ?? ""} onChange={(e) => setField(f.name, e.target.value)}
+          fullWidth size="small" required={f.required} disabled={disabled}>
+          <MenuItem value=""><em>None</em></MenuItem>
+          {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+        </TextField>
       );
     }
     if (f.type === "codeValue" || f.type === "ref") {

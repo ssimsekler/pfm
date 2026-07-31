@@ -35,11 +35,12 @@ class AccountOut(EntityOut):
 class AccountCreate(ORMModel):
     name: str
     description: str | None = None
-    account_type_cv_id: uuid_lib.UUID | None = None
+    # Type & Institution are mandatory for an account (Session 742, Bug 4).
+    account_type_cv_id: uuid_lib.UUID
     currency: str
     opening_balance: Decimal = Decimal(0)
     opening_balance_date: date | None = None
-    institution_id: uuid_lib.UUID | None = None
+    institution_id: uuid_lib.UUID
     is_active: bool = True
 
 
@@ -272,6 +273,7 @@ class TransactionOut(EntityOut):
     expense_item_seq_no: int | None = None
     transfer_group_id: uuid_lib.UUID | None = None
     installment_plan_id: uuid_lib.UUID | None = None
+    goal_id: uuid_lib.UUID | None = None
     source_document_id: uuid_lib.UUID | None = None
     is_split: bool
     status_cv_id: uuid_lib.UUID | None = None
@@ -292,6 +294,7 @@ class TransactionCreate(ORMModel):
     expense_category_id: uuid_lib.UUID | None = None
     cash_flow_item_id: uuid_lib.UUID | None = None
     expense_item_seq_no: int | None = None
+    goal_id: uuid_lib.UUID | None = None
     status_cv_id: uuid_lib.UUID | None = None
     note: str | None = None
 
@@ -310,6 +313,7 @@ class TransactionUpdate(ORMModel):
     expense_category_id: uuid_lib.UUID | None = None
     cash_flow_item_id: uuid_lib.UUID | None = None
     expense_item_seq_no: int | None = None
+    goal_id: uuid_lib.UUID | None = None
     status_cv_id: uuid_lib.UUID | None = None
     note: str | None = None
 

@@ -73,9 +73,30 @@ def add_budget_line(
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_write),
 ):
+    """Add a budget line. A line is **either** driven by a cash-flow item (its
+    category + direction are inherited) **or** a category+direction pair — exactly
+    one mode (Session 742, Bug 12)."""
     if db.get(bud.Budget, budget_id) is None:
         raise HTTPException(status_code=404, detail="budget not found")
-    line = bud.BudgetLine(budget_id=budget_id, **payload.model_dump())
+
+    data = payload.model_dump()
+    if data.get("cash_flow_item_id"):
+        # Item-driven: inherit category + direction from the item; ignore any
+        # explicitly-passed category/direction to avoid conflicts.
+        item = db.get(fin.CashFlowItem, data["cash_flow_item_id"])
+        if item is None:
+            raise HTTPException(status_code=422, detail="cash_flow_item not found")
+        data["expense_category_id"] = item.expense_category_id
+        data["direction_cv_id"] = item.flow_type_cv_id
+    else:
+        # Category+direction mode: both are required when no item is chosen.
+        if not data.get("expense_category_id") or not data.get("direction_cv_id"):
+            raise HTTPException(
+                status_code=422,
+                detail="Provide a Cash Flow Item, or both a Category and a Direction.",
+            )
+
+    line = bud.BudgetLine(budget_id=budget_id, **data)
     db.add(line)
     db.commit()
     db.refresh(line)

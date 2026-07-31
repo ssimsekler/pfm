@@ -51,6 +51,12 @@ _ADDITIVE_COLUMNS: list[tuple[str, str, str]] = [
     # holiday_calendar weekend/week-start config (Phase 11 Batch 3, A.1).
     ("holiday_calendar", "weekend_days", "JSONB"),
     ("holiday_calendar", "week_start", "SMALLINT"),
+    # Goals ↔ transactions (Session 742, Bug 19).
+    ("goal", "goal_type_cv_id", "UUID"),
+    ("goal", "expense_category_id", "UUID"),
+    ("goal", "period", "VARCHAR(20)"),
+    ("goal", "limit_amount", "NUMERIC(18,4)"),
+    ("transaction", "goal_id", "UUID"),
 ]
 
 # Idempotent column alterations (not just additions) for evolving models.

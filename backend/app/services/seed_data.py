@@ -148,6 +148,11 @@ SYSTEM_CODE_LISTS: dict[str, list[tuple[str, str, bool]]] = {
         ("business", "Business Loan", False),
         ("other", "Other", False),
     ],
+    # Goal evaluation modes (Session 742, Bug 19).
+    "goal_type": [
+        ("save_to_target", "Save to target", True),
+        ("cap_expense", "Cap expense", False),
+    ],
 }
 
 # code, symbol, decimals, name

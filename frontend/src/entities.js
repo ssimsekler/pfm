@@ -98,11 +98,11 @@ export const ENTITIES = {
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
-      { name: "account_type_cv_id", label: "Type", type: "codeValue", listKey: "account_type" },
+      { name: "account_type_cv_id", label: "Type", type: "codeValue", listKey: "account_type", required: true },
       { ...CURRENCY_FIELD, required: true },
       { name: "opening_balance", label: "Opening Balance", type: "number" },
       { name: "opening_balance_date", label: "Opening Balance Date", type: "date" },
-      { name: "institution_id", label: "Institution", type: "ref", refEntity: "institutions" },
+      { name: "institution_id", label: "Institution", type: "ref", refEntity: "institutions", required: true },
       { name: "is_active", label: "Active", type: "boolean" },
       { name: "description", label: "Description", type: "textarea" },
     ],
@@ -197,7 +197,7 @@ export const ENTITIES = {
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "symbol", label: "Symbol", type: "text", required: true },
-      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts" },
+      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts", disabled: true, help: "A backing investment account is created automatically." },
       { name: "asset_type_cv_id", label: "Asset Type", type: "codeValue", listKey: "asset_type" },
       { name: "quantity", label: "Quantity", type: "number" },
       { name: "entry_value", label: "Entry Value", type: "number" },
@@ -221,7 +221,7 @@ export const ENTITIES = {
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
       { name: "loan_category_cv_id", label: "Category", type: "codeValue", listKey: "loan_category" },
-      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts" },
+      { name: "account_id", label: "Account", type: "ref", refEntity: "accounts", disabled: true, help: "A backing loan account is created automatically." },
       { name: "principal", label: "Principal", type: "number", required: true },
       { name: "interest_rate", label: "Interest Rate %", type: "number", required: true },
       { name: "term_months", label: "Term (months)", type: "number", required: true },
@@ -266,10 +266,19 @@ export const ENTITIES = {
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },
+      { name: "goal_type_cv_id", label: "Goal Type", type: "codeValue", listKey: "goal_type", help: "Save to target, or cap an expense category per period." },
       { name: "target_amount", label: "Target Amount", type: "number", required: true },
       { ...CURRENCY_FIELD },
       { name: "target_date", label: "Target Date", type: "date" },
       { name: "linked_account_id", label: "Linked Account", type: "ref", refEntity: "accounts" },
+      // For "cap_expense" goals (e.g. "Keep fuel < 1000/month").
+      { name: "expense_category_id", label: "Category (cap)", type: "ref", refEntity: "expense-categories", help: "Category to cap for a 'cap expense' goal." },
+      { name: "period", label: "Period (cap)", type: "select", options: [
+        { value: "monthly", label: "Monthly" },
+        { value: "yearly", label: "Yearly" },
+        { value: "total", label: "Total" },
+      ], help: "Evaluation window for a 'cap expense' goal." },
+      { name: "limit_amount", label: "Limit Amount (cap)", type: "number" },
       { name: "description", label: "Description", type: "textarea" },
     ],
   },

@@ -11,6 +11,7 @@ import {
 import PaidIcon from "@mui/icons-material/Paid";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import { api } from "../api";
 import ComboField from "./ComboField";
 
@@ -41,6 +42,17 @@ export default function ScheduleDialog({ record, kind, onClose }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
+  // New-1: import a schedule from CSV (replace existing rows).
+  const importCsv = async (file) => {
+    if (!file) return;
+    setBusy(true); setError(null); setMsg(null);
+    try {
+      await api.upload(`${base}/${record.uuid}/schedule/import`, file, { mode: "replace" });
+      setMsg("Schedule imported from CSV.");
+      await load();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
   const pay = async (row) => {
     setBusy(true); setError(null); setMsg(null);
     try {
@@ -65,7 +77,18 @@ export default function ScheduleDialog({ record, kind, onClose }) {
           <Button startIcon={<PlaylistAddIcon />} onClick={generate} disabled={busy}>
             Generate schedule
           </Button>
+          <Button component="label" startIcon={<UploadFileIcon />} disabled={busy}>
+            Import CSV
+            <input hidden type="file" accept=".csv,text/csv"
+              onChange={(e) => { importCsv(e.target.files?.[0]); e.target.value = ""; }} />
+          </Button>
         </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+          {isLoan
+            ? "CSV columns: period, due_date, principal_portion, interest_portion, balance."
+            : "CSV columns: seq, due_date, amount."}
+          {" "}Recording a payment creates a linked transaction; the linked id shows in the Txn column.
+        </Typography>
 
         <Table size="small">
           <TableHead>

@@ -145,6 +145,10 @@ class Transaction(BaseEntity):
     installment_plan_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
+    # Session 742, Bug 19: optional link to a savings/cap goal for progress tracking.
+    goal_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True, index=True
+    )
     source_document_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )

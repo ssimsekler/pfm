@@ -132,3 +132,15 @@ class Goal(BaseEntity):
     linked_account_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         ForeignKey("account.uuid"), nullable=True
     )
+    # Session 742, Bug 19: goals are evaluated against transactions.
+    #   goal_type: "save_to_target" (accumulate toward target_amount) or
+    #              "cap_expense" (keep spend in a category under limit_amount/period).
+    #   period: e.g. "monthly" | "yearly" | "total" for cap evaluation.
+    goal_type_cv_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        ForeignKey("code_value.uuid"), nullable=True
+    )
+    expense_category_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        ForeignKey("expense_category.uuid"), nullable=True
+    )
+    period: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    limit_amount: Mapped[Decimal | None] = mapped_column(AMOUNT, nullable=True)

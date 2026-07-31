@@ -19,7 +19,15 @@
       `user_role.grant_household_id` made nullable (Bug 2); password-fallback refresh token +
       `POST /v1/auth/refresh` + `api.js` refresh-on-401 + `pfm:session-expired` re-login prompt
       (Bug 3). Backend compiles; frontend builds.
-    - [ ] 742-Batch 2 — Data model, validation & schedule import (4, 10, 11, 12, 19, New-1)
+    - [x] 742-Batch 2 — Data model, validation & schedule import (4, 10, 11, 12, 19, New-1) —
+      **DONE** [ADR #66–70]: account type+institution required (Bug 4); loan/investment always
+      auto-create a (loan/investment-type) backing account, Account field hidden on create
+      (Bug 10); installment↔txn link surfaced in ScheduleDialog (Bug 11); budget line
+      either CFI **or** category+direction, enforced server-side + UUID→label in the dialog
+      (Bug 12/22); goals gain type/category/period/limit + `transaction.goal_id` +
+      `GET /v1/goals/{id}/progress` (Bug 19); CSV schedule import for loans & installments
+      (`…/schedule/import`) + ScheduleDialog "Import CSV" (New-1); `EntityForm` gained a
+      `select` field type. Backend compiles; frontend builds.
     - [ ] 742-Batch 3 — Reports & display (5, 22, 23)
     - [ ] 742-Batch 4 — Settings, SMTP, FX, LLM sequence (6, 7, 8, 20, New-2)
     - [ ] 742-Batch 5 — Investment valuation fix (new bug)
