@@ -42,7 +42,12 @@
       `smtp.*` keys + `send_test_email` + `POST /v1/notifications/test-email` + Email (SMTP)
       settings card with "Send test email" (8); FX "Refresh from source" card on Configuration
       → Currency Rates (20). Backend compiles; frontend builds.
-    - [ ] 742-Batch 5 — Investment valuation fix (new bug)
+    - [x] 742-Batch 5 — Investment valuation fix (new bug) — **DONE** [ADR #73]:
+      `refresh_holding(on=None)` accepts a target date, overwrites/inserts that date's row,
+      keeps cache on the latest; typed `ValuationError` (manual_only vs source) →
+      `POST …/refresh-valuation` (now with `on`) returns a **helpful 422** instead of the
+      opaque message; ValuationDialog passes the chosen "As of" date. Backend compiles;
+      frontend builds.
     - [ ] 742-Batch 6 — Import intelligence & flexibility (17, 18)
     - [ ] 742-Batch 7 — UX polish (9, 13, 14, 15, 16, 21, 24, 25)
 - **Previous Phase 11 rounds** (kept for history): UX bug-fix & feature pass rounds — fixing

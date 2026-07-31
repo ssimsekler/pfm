@@ -42,10 +42,13 @@ export default function ValuationDialog({ record, onClose }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
+  // Session 742: refresh fetches the price for the chosen date (the "As of" field,
+  // default today) and overwrites any existing row for that date.
   const refresh = async () => {
     setBusy(true); setError(null); setMsg(null);
     try {
-      const res = await api.post(`/v1/investments/${record.uuid}/refresh-valuation`, {});
+      const res = await api.post(`/v1/investments/${record.uuid}/refresh-valuation`,
+        draft.as_of_date ? { on: draft.as_of_date } : {});
       setMsg(`Refreshed: ${res.value} as of ${res.as_of}.`);
       await load();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -98,6 +101,10 @@ export default function ValuationDialog({ record, onClose }) {
           <Button variant="contained" startIcon={<AddIcon />} onClick={add} disabled={busy}>Add</Button>
           <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={busy}>Refresh from source</Button>
         </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+          “Refresh from source” fetches the price for the <b>As of</b> date (default today) and
+          overwrites that date’s value. Manual-only asset types have no price source — use <b>Add</b>.
+        </Typography>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>

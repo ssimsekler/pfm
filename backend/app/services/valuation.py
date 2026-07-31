@@ -23,8 +23,29 @@ def _asset_kind(db: Session, holding: InvestmentHolding) -> str | None:
     return cv.code if cv else None
 
 
-def refresh_holding(db: Session, holding: InvestmentHolding) -> Decimal | None:
-    """Fetch price, update cache + append valuation history. Returns the value or None."""
+class ValuationError(Exception):
+    """Raised when a valuation cannot be fetched, with a user-facing reason.
+
+    `kind`:
+      - "manual_only": asset type has no price source (generic asset) — enter manually.
+      - "source": the configured source returned no price / was unreachable / symbol unknown.
+    """
+
+    def __init__(self, message: str, kind: str = "source") -> None:
+        super().__init__(message)
+        self.kind = kind
+
+
+def refresh_holding(
+    db: Session, holding: InvestmentHolding, on: date | None = None
+) -> Decimal:
+    """Fetch price for `on` (default today), upsert valuation history, update cache.
+
+    Session 742 (valuation bug): accepts a target date and **overwrites** an existing
+    row for that date (else inserts). Raises ``ValuationError`` with a clear reason
+    instead of silently returning None, so the API can surface a helpful 422.
+    """
+    as_of = on or date.today()
     kind = _asset_kind(db, holding)
     vs = (holding.currency or "USD").lower()
 
@@ -34,31 +55,45 @@ def refresh_holding(db: Session, holding: InvestmentHolding) -> Decimal | None:
     elif kind in ("stock", "etf"):
         price = connectors.fetch_stock_price(db, holding.symbol)
     else:
-        price = None  # generic asset: manual only
+        raise ValuationError(
+            "This asset type has no automatic price source — add a valuation manually.",
+            kind="manual_only",
+        )
 
     if price is None:
-        return None
+        raise ValuationError(
+            f"The price source returned no value for “{holding.symbol}”. "
+            "Check the symbol / source, or add a valuation manually.",
+            kind="source",
+        )
 
     value = (Decimal(holding.quantity) * price) if holding.quantity else price
-    today = date.today()
 
     existing = db.execute(
         select(ValuationHistory).where(
             ValuationHistory.holding_id == holding.uuid,
-            ValuationHistory.as_of_date == today,
+            ValuationHistory.as_of_date == as_of,
         )
     ).scalar_one_or_none()
     if existing:
-        existing.value = value
+        existing.value = value  # overwrite for the chosen date
     else:
         db.add(
             ValuationHistory(
                 uuid=uuid_lib.uuid4(),
                 holding_id=holding.uuid,
-                as_of_date=today,
+                as_of_date=as_of,
                 value=value,
             )
         )
-    holding.current_value_cache = value
+
+    # Keep the cache in sync with the latest-dated valuation.
+    latest = db.execute(
+        select(ValuationHistory)
+        .where(ValuationHistory.holding_id == holding.uuid)
+        .order_by(ValuationHistory.as_of_date.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    holding.current_value_cache = value if (latest is None or as_of >= latest.as_of_date) else latest.value
     db.commit()
     return value

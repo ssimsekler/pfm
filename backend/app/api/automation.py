@@ -17,6 +17,7 @@ from app.core.security import Principal, get_current_principal, require_write
 from app.models import automation as auto
 from app.models import financial as fin
 from app.services import connectors, valuation
+from app.services.valuation import ValuationError
 from app.services.auto_account import ensure_backing_account
 from app.services.repository import Repository
 
@@ -263,19 +264,36 @@ class ValuationIn(BaseModel):
     value: Decimal
 
 
+class RefreshValuationIn(BaseModel):
+    on: date | None = None  # target date (default today); overwrites an existing row
+
+
 @holding_router.post("/{holding_id}/refresh-valuation")
 def refresh_valuation(
     holding_id: uuid_lib.UUID,
+    payload: RefreshValuationIn | None = None,
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_write),
 ):
+    """Fetch a price for the target date (default today) and upsert it (Session 742).
+
+    Overwrites the valuation for that date if one exists; clear errors distinguish a
+    manual-only asset type from a source failure.
+    """
     holding = db.get(auto.InvestmentHolding, holding_id)
     if holding is None:
         raise HTTPException(status_code=404, detail="holding not found")
-    value = valuation.refresh_holding(db, holding)
-    if value is None:
-        raise HTTPException(status_code=422, detail="Could not fetch a price for this holding")
-    return {"holding": str(holding_id), "value": str(value), "as_of": date.today().isoformat()}
+    on = payload.on if payload else None
+    try:
+        value = valuation.refresh_holding(db, holding, on=on)
+    except ValuationError as exc:
+        # 422 with a helpful, reason-tagged message.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "holding": str(holding_id),
+        "value": str(value),
+        "as_of": (on or date.today()).isoformat(),
+    }
 
 
 @holding_router.get("/{holding_id}/valuations", response_model=list[ValuationOut])
