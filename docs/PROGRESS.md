@@ -34,7 +34,14 @@
       `GET /v1/reports/cash-projection?budget_id=&months=` + Reports **Cash Projection**
       multi-line chart (month-end cash/investments/loans/net) (Bug 23). Backend compiles;
       frontend builds.
-    - [ ] 742-Batch 4 — Settings, SMTP, FX, LLM sequence (6, 7, 8, 20, New-2)
+    - [x] 742-Batch 4 — Settings, SMTP, FX, LLM sequence (6, 7, 8, 20, New-2) — **DONE**
+      [ADR #72]: standardized LLM switch on `llm.master_enabled` + seeder migrates/deletes
+      stray `llm.enabled` (6/7); **rewrote `llm_gateway.py`** into a real gateway with
+      priority failover gated by the master switch (fixed a latent missing-`complete()`
+      crash) + Priority field on LLM Providers (New-2); consolidated SMTP onto discrete
+      `smtp.*` keys + `send_test_email` + `POST /v1/notifications/test-email` + Email (SMTP)
+      settings card with "Send test email" (8); FX "Refresh from source" card on Configuration
+      → Currency Rates (20). Backend compiles; frontend builds.
     - [ ] 742-Batch 5 — Investment valuation fix (new bug)
     - [ ] 742-Batch 6 — Import intelligence & flexibility (17, 18)
     - [ ] 742-Batch 7 — UX polish (9, 13, 14, 15, 16, 21, 24, 25)

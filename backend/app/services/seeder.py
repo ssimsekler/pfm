@@ -229,3 +229,15 @@ def _seed_app_config(db: Session) -> None:
                 AppConfig(key=key, value=value, value_type=value_type, description=desc)
             )
     db.flush()
+
+    # Session 742, Bug 6: consolidate the duplicate LLM switch. Older installs
+    # created a stray `llm.enabled` (from the Settings UI) alongside the seeded
+    # `llm.master_enabled`. Migrate the value across, then drop the stray key so
+    # only one row remains.
+    stray = db.get(AppConfig, "llm.enabled")
+    if stray is not None:
+        master = db.get(AppConfig, "llm.master_enabled")
+        if master is not None and stray.value is not None:
+            master.value = stray.value
+        db.delete(stray)
+        db.flush()

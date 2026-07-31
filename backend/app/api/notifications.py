@@ -114,4 +114,21 @@ def mark_read(
     return note
 
 
+class TestEmailIn(BaseModel):
+    to: str | None = None
+
+
+@router.post("/test-email")
+def test_email(
+    payload: TestEmailIn,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    """Send a test email with the stored SMTP settings (Session 742, Bug 8)."""
+    try:
+        return notification_service.send_test_email(db, payload.to)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 ALL_ROUTERS = [router]

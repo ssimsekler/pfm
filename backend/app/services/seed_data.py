@@ -192,8 +192,16 @@ ROLES: list[tuple[str, str]] = [
 
 # key, value, value_type, description
 APP_CONFIG: list[tuple[str, object, str, str]] = [
-    ("llm.master_enabled", False, "bool", "Master switch for all LLM usage"),
-    ("smtp.enabled", False, "bool", "Enable email notifications"),
+    ("llm.master_enabled", False, "bool", "Master switch: enables all LLM features (categorization suggestions, budget commentary). When off, the LLM gateway returns nothing."),
+    # SMTP (Session 742, Bug 8) — discrete keys usable with any provider.
+    ("smtp.enabled", False, "bool", "Enable outgoing email (SMTP)"),
+    ("smtp.host", "", "string", "SMTP host, e.g. smtp.mail.yahoo.com / smtp.gmail.com"),
+    ("smtp.port", 587, "int", "SMTP port (465 for SSL, 587 for STARTTLS)"),
+    ("smtp.security", "starttls", "string", "Connection security: none | starttls | ssl"),
+    ("smtp.username", "", "string", "SMTP username (usually the full email address)"),
+    ("smtp.password", "", "string", "SMTP password / app-password"),
+    ("smtp.from", "", "string", "Sender address (From)"),
+    ("smtp.to", "", "string", "Default recipient (used for test email / when no explicit to)"),
     ("default_base_currency", "USD", "string", "Reporting currency for roll-ups"),
     ("default_txn_currency", "AED", "string", "Default currency for new transactions"),
     ("sql_console.enabled", True, "bool", "Enable the read-only SQL console"),

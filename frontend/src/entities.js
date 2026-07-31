@@ -361,6 +361,7 @@ export const ENTITIES = {
       { name: "base_url", label: "Base URL", type: "text" },
       { name: "model", label: "Model", type: "text" },
       { name: "credentials_ref", label: "Credentials Ref", type: "text" },
+      { name: "priority", label: "Priority", type: "number", help: "Lower is tried first; the gateway fails over to the next enabled provider (New-2)." },
       { name: "enabled", label: "Enabled", type: "boolean" },
       { name: "description", label: "Description", type: "textarea" },
     ],

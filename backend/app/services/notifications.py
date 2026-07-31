@@ -1,10 +1,22 @@
 """Notification service: create in-app notifications and optionally email them.
 
-Email is sent only when SMTP is configured (app_config['smtp.enabled'] + settings);
-otherwise notifications remain in-app (Decision #20).
+Email is sent only when SMTP is enabled + configured; otherwise notifications
+remain in-app (Decision #20).
+
+Session 742, Bug 8: SMTP config is stored as **discrete app-config keys** (works
+with any provider, e.g. Gmail/Yahoo/Outlook/self-hosted):
+  - smtp.enabled   (bool)
+  - smtp.host      (string)   e.g. smtp.mail.yahoo.com
+  - smtp.port      (int)      e.g. 465 (SSL) or 587 (STARTTLS)
+  - smtp.security  (string)   one of: none | starttls | ssl
+  - smtp.username  (string)
+  - smtp.password  (string)   provider app-password
+  - smtp.from      (string)   sender address
+  - smtp.to        (string)   default recipient (used for test / no explicit to)
 """
 
 import smtplib
+import ssl
 import uuid as uuid_lib
 from datetime import datetime, timezone
 from email.message import EmailMessage
@@ -26,12 +38,33 @@ def _cv(db: Session, list_key: str, code: str) -> uuid_lib.UUID | None:
     return cv.uuid if cv else None
 
 
+def _cfg(db: Session, key: str, default=None):
+    row = db.get(AppConfig, key)
+    return row.value if (row is not None and row.value is not None) else default
+
+
+def _as_bool(v) -> bool:
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().lower() in ("1", "true", "t", "yes", "y")
+
+
 def _smtp_config(db: Session) -> dict | None:
-    enabled = db.get(AppConfig, "smtp.enabled")
-    if enabled is None or not bool(enabled.value):
+    """Return a normalized SMTP config dict, or None when disabled/incomplete."""
+    if not _as_bool(_cfg(db, "smtp.enabled", False)):
         return None
-    cfg = db.get(AppConfig, "smtp.config")
-    return cfg.value if cfg and isinstance(cfg.value, dict) else None
+    host = _cfg(db, "smtp.host")
+    if not host:
+        return None
+    return {
+        "host": str(host),
+        "port": int(_cfg(db, "smtp.port", 587) or 587),
+        "security": str(_cfg(db, "smtp.security", "starttls") or "starttls").lower(),
+        "username": _cfg(db, "smtp.username"),
+        "password": _cfg(db, "smtp.password"),
+        "from": _cfg(db, "smtp.from") or _cfg(db, "smtp.username") or "pfm@localhost",
+        "to": _cfg(db, "smtp.to"),
+    }
 
 
 def create_notification(
@@ -79,6 +112,7 @@ def create_notification(
 
 
 def _send_email(smtp: dict, to: str, subject: str, body: str) -> None:
+    """Send one email honoring the `security` mode (none | starttls | ssl)."""
     msg = EmailMessage()
     msg["From"] = smtp.get("from", "pfm@localhost")
     msg["To"] = to
@@ -87,9 +121,43 @@ def _send_email(smtp: dict, to: str, subject: str, body: str) -> None:
 
     host = smtp.get("host", "localhost")
     port = int(smtp.get("port", 587))
-    with smtplib.SMTP(host, port, timeout=10) as server:
-        if smtp.get("starttls", True):
-            server.starttls()
+    security = str(smtp.get("security", "starttls")).lower()
+
+    if security == "ssl":
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, timeout=15, context=context) as server:
+            if smtp.get("username"):
+                server.login(smtp["username"], smtp.get("password", ""))
+            server.send_message(msg)
+        return
+
+    with smtplib.SMTP(host, port, timeout=15) as server:
+        if security == "starttls":
+            server.starttls(context=ssl.create_default_context())
         if smtp.get("username"):
             server.login(smtp["username"], smtp.get("password", ""))
         server.send_message(msg)
+
+
+def send_test_email(db: Session, to: str | None = None) -> dict:
+    """Send a test email using the stored SMTP settings (Session 742, Bug 8).
+
+    Raises RuntimeError with a friendly message when SMTP is disabled/incomplete
+    or the send fails, so the API can surface a 422/400 with detail.
+    """
+    smtp = _smtp_config(db)
+    if smtp is None:
+        raise RuntimeError("SMTP is disabled or incomplete. Set smtp.enabled and smtp.host.")
+    recipient = to or smtp.get("to") or smtp.get("from")
+    if not recipient:
+        raise RuntimeError("No recipient — set smtp.to or pass an address.")
+    try:
+        _send_email(
+            smtp,
+            recipient,
+            "PFM test email",
+            "This is a test email from your PFM instance. SMTP is configured correctly.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Send failed: {exc}") from exc
+    return {"sent": True, "to": recipient, "host": smtp["host"], "security": smtp["security"]}

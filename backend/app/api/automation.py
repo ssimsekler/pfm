@@ -29,6 +29,8 @@ class LlmProviderOut(EntityOut):
     model: str | None = None
     enabled: bool
     params: dict | None = None
+    # Surfaced from params.priority for the UI (New-2 failover order).
+    priority: int | None = None
 
 
 class LlmProviderCreate(ORMModel):
@@ -40,6 +42,7 @@ class LlmProviderCreate(ORMModel):
     credentials_ref: str | None = None
     enabled: bool = True
     params: dict | None = None
+    priority: int | None = None
 
 
 class LlmProviderUpdate(ORMModel):
@@ -51,6 +54,17 @@ class LlmProviderUpdate(ORMModel):
     credentials_ref: str | None = None
     enabled: bool | None = None
     params: dict | None = None
+    priority: int | None = None
+
+
+def _llm_pre_write(db: Session, data: dict, obj) -> None:
+    """Fold a flat `priority` into `params.priority` (New-2 failover order)."""
+    if "priority" in data:
+        pr = data.pop("priority")
+        if pr is not None:
+            params = dict(data.get("params") or (getattr(obj, "params", None) or {}))
+            params["priority"] = int(pr)
+            data["params"] = params
 
 
 llm_provider_router = build_crud_router(
@@ -58,6 +72,7 @@ llm_provider_router = build_crud_router(
     entity_type="llm_provider", event_domain="llm_provider",
     out_schema=LlmProviderOut, create_schema=LlmProviderCreate, update_schema=LlmProviderUpdate,
     search_columns=["model", "base_url"],
+    pre_write=_llm_pre_write,
 )
 
 
