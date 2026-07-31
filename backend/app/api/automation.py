@@ -382,29 +382,68 @@ def refresh_fx_rate(
             ),
         )
 
-    # Close any open-ended period for this pair.
-    open_row = db.execute(
-        select(fin.CurrencyRate).where(
-            fin.CurrencyRate.base_ccy == payload.base_ccy,
-            fin.CurrencyRate.quote_ccy == payload.quote_ccy,
-            fin.CurrencyRate.end_date == OPEN_END,
-            fin.CurrencyRate.deleted_at.is_(None),
-        )
-    ).scalar_one_or_none()
-    if open_row and open_row.begin_date < on:
-        _rate_repo.update(db, open_row, {"end_date": on})
+    try:
+        # Batch 12: overlap-safe upsert. The currency_rate table has a GiST
+        # no-overlap exclusion constraint per (base, quote). If a period already
+        # BEGINS on `on`, update its rate in place (no new row → no overlap).
+        # Otherwise close the current open-ended period at `on` and insert a new
+        # open-ended row. This fixes the HTTP 500 when refreshing an existing
+        # same-day combination.
+        same_day = db.execute(
+            select(fin.CurrencyRate).where(
+                fin.CurrencyRate.base_ccy == payload.base_ccy,
+                fin.CurrencyRate.quote_ccy == payload.quote_ccy,
+                fin.CurrencyRate.begin_date == on,
+                fin.CurrencyRate.deleted_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if same_day is not None:
+            _rate_repo.update(db, same_day, {"rate": rate, "end_date": OPEN_END})
+            db.commit()
+            return {
+                "currency_rate": str(same_day.uuid),
+                "base_ccy": payload.base_ccy,
+                "quote_ccy": payload.quote_ccy,
+                "rate": str(rate),
+                "begin_date": on.isoformat(),
+                "updated": True,
+            }
 
-    new_row = _rate_repo.create(
-        db,
-        {
-            "name": f"{payload.base_ccy}/{payload.quote_ccy} @ {on.isoformat()}",
-            "base_ccy": payload.base_ccy,
-            "quote_ccy": payload.quote_ccy,
-            "rate": rate,
-            "begin_date": on,
-            "end_date": OPEN_END,
-        },
-    )
+        # Close any open-ended period for this pair that started before `on`.
+        open_row = db.execute(
+            select(fin.CurrencyRate).where(
+                fin.CurrencyRate.base_ccy == payload.base_ccy,
+                fin.CurrencyRate.quote_ccy == payload.quote_ccy,
+                fin.CurrencyRate.end_date == OPEN_END,
+                fin.CurrencyRate.deleted_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if open_row and open_row.begin_date < on:
+            _rate_repo.update(db, open_row, {"end_date": on})
+
+        new_row = _rate_repo.create(
+            db,
+            {
+                "name": f"{payload.base_ccy}/{payload.quote_ccy} @ {on.isoformat()}",
+                "base_ccy": payload.base_ccy,
+                "quote_ccy": payload.quote_ccy,
+                "rate": rate,
+                "begin_date": on,
+                "end_date": OPEN_END,
+            },
+        )
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — surface overlaps as a clear 422
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Could not store {base}/{quote} on {on.isoformat()}: overlapping "
+                f"validity period. Edit or delete the existing rate first. ({exc})"
+            ),
+        ) from exc
     return {
         "currency_rate": str(new_row.uuid),
         "base_ccy": payload.base_ccy,

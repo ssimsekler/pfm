@@ -179,7 +179,11 @@ def _get_or_create_user(db: Session, principal: Principal) -> AppUser | None:
             select(AppUser).where(AppUser.email == principal.email)
         ).scalar_one_or_none()
 
-    if user is None and (subject or principal.username):
+    # Batch 12: only auto-provision for a REAL identity (a resolved keycloak
+    # subject). The dev fallback principal has subject=None / username="dev" and
+    # must NOT create a stray "dev" app_user on every unauthenticated /v1/profile
+    # hit (e.g. initFormats at startup) — that produced superfluous "dev" users.
+    if user is None and subject:
         # Auto-provision a local mirror for the signed-in identity.
         from app.services.repository import Repository
 

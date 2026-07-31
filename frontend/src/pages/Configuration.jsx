@@ -21,7 +21,7 @@ import { api } from "../api";
 const CCY_FIELD = { type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" };
 
 // Bug 20: pull a rate from the configured FX source into a validity period.
-function FxRefreshCard() {
+function FxRefreshCard({ onRefreshed }) {
   const [base, setBase] = useState("");
   const [quotes, setQuotes] = useState("");
   const [msg, setMsg] = useState(null);
@@ -40,8 +40,12 @@ function FxRefreshCard() {
         done.push(`${base}/${q}`);
       }
       setMsg(`Refreshed: ${done.join(", ")}.`);
+      // Batch 12: refresh the Currency Rates table above (no manual page reload).
+      if (onRefreshed) onRefreshed();
     } catch (e) {
       setError(`${e.message}${done.length ? ` (done: ${done.join(", ")})` : ""}`);
+      // Still refresh the table for any pairs that did succeed.
+      if (done.length && onRefreshed) onRefreshed();
     } finally { setBusy(false); }
   };
 
@@ -83,6 +87,8 @@ export default function Configuration() {
   const location = useLocation();
   const navigate = useNavigate();
   const [calendar, setCalendar] = useState(null);
+  // Batch 12: bumped after an FX refresh so the Currency Rates table reloads.
+  const [fxSignal, setFxSignal] = useState(0);
 
   // Read the active tab from the hash query (?tab=…), default to the first.
   const initialTab = useMemo(() => {
@@ -118,8 +124,8 @@ export default function Configuration() {
 
       {active === "currency-rates" ? (
         <Stack spacing={2}>
-          <EntityManager entity="currency-rates" cfg={ENTITIES["currency-rates"]} />
-          <FxRefreshCard />
+          <EntityManager entity="currency-rates" cfg={ENTITIES["currency-rates"]} refreshSignal={fxSignal} />
+          <FxRefreshCard onRefreshed={() => setFxSignal((s) => s + 1)} />
         </Stack>
       ) : null}
 

@@ -82,6 +82,12 @@ _ALTER_STATEMENTS: list[str] = [
     # (older/seeded rows created before the derive-level hook had level = NULL).
     'UPDATE "{schema}"."beneficiary" SET "level" = 1 WHERE "level" IS NULL',
     'UPDATE "{schema}"."expense_category" SET "level" = 1 WHERE "level" IS NULL',
+    # Batch 12: clean up stray "dev" users auto-created by the old profile
+    # auto-provision (guest fallback). Soft-delete any app_user named/usernamed
+    # "dev" that has no Keycloak subject link (never a real account).
+    'UPDATE "{schema}"."app_user" SET "deleted_at" = now() '
+    'WHERE "deleted_at" IS NULL AND "keycloak_subject" IS NULL '
+    "AND (lower(\"name\") = 'dev' OR lower(coalesce(\"username\",'')) = 'dev')",
 ]
 
 
