@@ -127,6 +127,17 @@
       SMTP only** (Keycloak SMTP unused): 30-min single-use hashed token; `GET /v1/auth/config`
       exposes `email_enabled` so the Forgot link shows **only when SMTP is configured**. Verified:
       local login 200, token accepted on `/v1/accounts` 200, `auth/config` 200; frontend builds.
+    - [x] 815-Batch 11 — Runtime credential consumption (OAuth2 + API auth) — **DONE** [ADR #82]:
+      new **`services/cred_auth.py`** turns a stored Credentials Store entry (by `credentials_ref`)
+      into applied outbound auth — **api_key** (header or query param), **basic_auth** (HTTP Basic),
+      **bearer_token** (`Authorization: Bearer`), **oauth2** (runs the grant at call time —
+      client_credentials / password / refresh_token against `token_url`, **caches** the access token
+      until ~expiry with a 30s margin, attaches Bearer), and **llm_provider** (api_key + optional
+      base_url). The **LLM gateway** now calls OpenAI-compatible providers using the provider's
+      `credentials_ref` (api key + base_url) with priority failover; **connectors** apply the active
+      integration endpoint's `credentials_ref` (crypto + configured endpoints). Editing a credential
+      clears the OAuth2 token cache. `authorization_code` (interactive) is intentionally not run
+      headless. Verified: backend imports clean (no circular); health/login unaffected.
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
   742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then

@@ -68,6 +68,17 @@ def _base_url(db: Session, scenario_key: str) -> str:
     return DEFAULTS[scenario_key]
 
 
+def _endpoint_auth(db: Session, scenario_key: str):
+    """Build runtime auth (headers/params/basic) from the active endpoint's
+    `credentials_ref`, if any (Session 815, Batch 11). Returns an AppliedAuth
+    (empty when no endpoint/credential is configured)."""
+    from app.services import cred_auth
+
+    ep = _endpoint(db, scenario_key)
+    ref = getattr(ep, "credentials_ref", None) if ep else None
+    return cred_auth.build_auth(db, ref) if ref else cred_auth.build_auth(db, None)
+
+
 # ---------------------------------------------------------------------------
 # FX rates (Item 3): base-agnostic, with cross-rate fallback.
 # ---------------------------------------------------------------------------
@@ -207,14 +218,18 @@ def fetch_fx_rate(db: Session, base_ccy: str, quote_ccy: str, on: date | None = 
 
 
 def fetch_crypto_price(db: Session, coin_id: str, vs_currency: str = "usd") -> Decimal | None:
-    """Fetch crypto spot price (CoinGecko-style)."""
+    """Fetch crypto spot price (CoinGecko-style). Applies the configured
+    endpoint's credential auth at runtime when set (Batch 11)."""
     base_url = _base_url(db, "CRYPTO_QUOTE")
+    auth = _endpoint_auth(db, "CRYPTO_QUOTE")
     try:
         resp = httpx.get(
             f"{base_url}/simple/price",
-            params={"ids": coin_id, "vs_currencies": vs_currency},
+            params={"ids": coin_id, "vs_currencies": vs_currency, **auth.params},
             timeout=8.0,
-            headers={"User-Agent": _UA},
+            headers={"User-Agent": _UA, **auth.headers},
+            auth=auth.basic,
+            follow_redirects=True,
         )
         resp.raise_for_status()
         data = resp.json()

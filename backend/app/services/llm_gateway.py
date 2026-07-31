@@ -71,12 +71,20 @@ def _kind_code(db: Session, provider: LlmProvider) -> str:
 def _call_provider(db: Session, provider: LlmProvider, prompt: str) -> str | None:
     """Attempt a single completion against one provider. Returns text or None.
 
-    Only the local **Ollama** kind is implemented directly here; other kinds are
-    left as graceful no-ops (return None) so the gateway falls through to the next
-    provider. Extend per-kind as needed.
+    - **ollama**: local /api/generate (no credentials).
+    - **openai/azure/custom** (OpenAI-compatible): uses the provider's
+      `credentials_ref` (LLM Provider Key) at runtime for the API key + optional
+      base_url override (Session 815, Batch 11). Falls through to the next
+      provider on any error.
     """
+    from app.services import cred_auth
+
     kind = _kind_code(db, provider)
-    base = (provider.base_url or settings.ollama_base_url or "").rstrip("/")
+    # Resolve the referenced credential (api_key / base_url) at call time.
+    ref = getattr(provider, "credentials_ref", None)
+    auth = cred_auth.build_auth(db, ref) if ref else cred_auth.AppliedAuth()
+
+    base = (auth.base_url or provider.base_url or settings.ollama_base_url or "").rstrip("/")
     model = provider.model or settings.ollama_default_model
 
     try:
@@ -89,8 +97,29 @@ def _call_provider(db: Session, provider: LlmProvider, prompt: str) -> str | Non
             if resp.status_code != 200:
                 return None
             return (resp.json() or {}).get("response")
-        # openai/azure/anthropic/custom: not wired without credentials — skip.
-        return None
+
+        # OpenAI-compatible chat completions (openai/azure/custom) — requires the
+        # api key from the referenced credential; skip (failover) if none.
+        if not auth.api_key:
+            return None
+        chat_base = base or "https://api.openai.com/v1"
+        resp = httpx.post(
+            f"{chat_base}/chat/completions",
+            headers={**auth.headers, "Content-Type": "application/json"},
+            json={
+                "model": model or "gpt-4o-mini",
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30.0,
+            follow_redirects=True,
+        )
+        if resp.status_code != 200:
+            return None
+        body = resp.json() or {}
+        choices = body.get("choices") or []
+        if not choices:
+            return None
+        return (choices[0].get("message") or {}).get("content")
     except Exception:  # noqa: BLE001 — failover to the next provider
         return None
 

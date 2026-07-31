@@ -175,6 +175,12 @@ def update_credential(
         cred.values = merged
     db.commit()
     db.refresh(cred)
+    # Batch 11: invalidate any cached OAuth2 tokens after a credential edit.
+    try:
+        from app.services.cred_auth import clear_token_cache
+        clear_token_cache()
+    except Exception:  # noqa: BLE001
+        pass
     return _out(db, cred)
 
 
