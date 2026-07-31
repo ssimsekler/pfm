@@ -53,6 +53,7 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 
 import { initAuth, getUser, login, logout, passwordLogin } from "./auth";
 import { initFormats } from "./format";
+import LoginScreen from "./pages/LoginScreen";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
 import CashFlowItems from "./pages/CashFlowItems";
@@ -208,13 +209,6 @@ function Shell({ user }) {
     window.addEventListener("pfm:session-expired", onExpired);
     return () => window.removeEventListener("pfm:session-expired", onExpired);
   }, []);
-
-  // Guest guard (Session 815, Batch 7 follow-up): if the shell rendered without
-  // an authenticated user (e.g. the startup timeout fired, or no session yet),
-  // prompt sign-in up front so data lists don't just silently 401 / spin.
-  useEffect(() => {
-    if (!user.authenticated) setLoginOpen(true);
-  }, [user.authenticated]);
 
   // When collapsed, show icons only with a tooltip carrying the label (Bug 24).
   const navItem = (item) => {
@@ -376,6 +370,13 @@ export default function App() {
 
   if (!ready) {
     return <Box sx={{ p: 4 }}>Loading…</Box>;
+  }
+
+  // Session 815, Batch 9: show a **full-screen login** when not authenticated
+  // (replaces the guest-guard dialog over empty tables). The local admin
+  // fallback + change/reset password all live on this screen.
+  if (!user.authenticated) {
+    return <LoginScreen />;
   }
 
   return (

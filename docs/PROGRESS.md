@@ -95,6 +95,24 @@
       `App.jsx` **guest guard** auto-opens the password login dialog when the shell renders
       unauthenticated. After sign-in the app reloads and lists populate. Frontend builds.
     - **815-Batch 7 completes Session 815 — all 21 reported items delivered + startup hardened.**
+    - [x] 815-Batch 8 — App-down startup crash fix — **DONE** [ADR #79]: new tables added after
+      `0001_initial` (`credential_category`/`credential`, Batch 5) were never created on existing
+      DBs (alembic at head = no-op; `create_all` only ran on migration failure), so `seed_all`
+      hit **UndefinedTable** → `init_db()` raised → FastAPI lifespan startup failed → uvicorn never
+      served (health/login 502 or hang). Fix: `init_db()` now runs alembic upgrade **and always**
+      `Base.metadata.create_all` (create-only) to converge new tables; hardened the init advisory
+      lock to a **non-blocking bounded retry**; `auth.js` `passwordLogin()` got a **15s timeout**.
+      Verified health 200 + password-login 200.
+    - [x] 815-Batch 9 — Full-screen login + Keycloak-independent local admin + change/reset — **DONE**
+      [ADR #80]: replaced the login dialog with a **full-screen `LoginScreen`** (sign-in / change /
+      forgot / reset). New backend **`local_auth`** stores a hashed (PBKDF2, stdlib) admin credential
+      in `app_config` (seeded from `LOCAL_ADMIN_USERNAME/PASSWORD`, default admin/admin) and issues an
+      **HS256 session JWT** (`iss=pfm-local`, role Admin) that `security._decode` accepts —
+      **login works even when Keycloak is down**. `password-login` tries local admin first, then
+      Keycloak. **Change password** (local hash / KC Admin API). **Forgot/reset** via the **app's
+      SMTP only** (Keycloak SMTP unused): 30-min single-use hashed token; `GET /v1/auth/config`
+      exposes `email_enabled` so the Forgot link shows **only when SMTP is configured**. Verified:
+      local login 200, token accepted on `/v1/accounts` 200, `auth/config` 200; frontend builds.
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
   742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then

@@ -56,7 +56,33 @@ def _get_jwks() -> dict | None:
         return None
 
 
+# Local session tokens (Session 815, Batch 9) are HS256, signed with
+# BACKEND_SECRET_KEY, and carry iss="pfm-local". They let the local admin sign in
+# without Keycloak. We detect them by the unverified issuer/alg and verify with
+# the shared secret; everything else is treated as a Keycloak RS256 token.
+_LOCAL_ISSUER = "pfm-local"
+
+
+def _is_local_token(token: str) -> bool:
+    try:
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") == "HS256":
+            return True
+        claims = jwt.get_unverified_claims(token)
+        return claims.get("iss") == _LOCAL_ISSUER
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _decode(token: str) -> dict:
+    # Local admin session token (HS256, our secret).
+    if _is_local_token(token):
+        return jwt.decode(
+            token,
+            settings.backend_secret_key,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
     jwks = _get_jwks()
     if jwks is None:
         # Cannot verify signature (Keycloak not reachable) — decode without verify (dev).

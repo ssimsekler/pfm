@@ -559,7 +559,24 @@ class PasswordLoginIn(BaseModel):
 
 
 @auth_router.post("/password-login")
-def password_login(payload: PasswordLoginIn):
+def password_login(payload: PasswordLoginIn, db: Session = Depends(get_db)):
+    """Sign in with username/password.
+
+    Session 815, Batch 9: try the **local admin** first (Keycloak-independent),
+    so login always works even when Keycloak is down. If the credentials don't
+    match the local admin, fall back to proxying Keycloak's direct-access grant.
+    """
+    from app.services import local_auth
+
+    # 1) Local admin (own signed HS256 session token; no Keycloak needed).
+    try:
+        if local_auth.verify(db, payload.username, payload.password):
+            return local_auth.issue_token(local_auth.get_username(db))
+    except Exception:  # noqa: BLE001
+        # Never let a local-auth hiccup block the Keycloak path.
+        pass
+
+    # 2) Keycloak direct-access grant.
     token_url = (
         f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
         "/protocol/openid-connect/token"
@@ -573,7 +590,11 @@ def password_login(payload: PasswordLoginIn):
     try:
         resp = httpx.post(token_url, data=data, timeout=10.0)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"Auth server unreachable: {exc}") from exc
+        # Keycloak unreachable AND not the local admin → clear message.
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password (auth server unreachable).",
+        ) from exc
     if resp.status_code != 200:
         raise HTTPException(status_code=401, detail="Invalid username or password")
     body = resp.json()
@@ -585,17 +606,235 @@ def password_login(payload: PasswordLoginIn):
     }
 
 
+# --- Auth capabilities (drives the login UI) ---------------------------------
+@auth_router.get("/config")
+def auth_config(db: Session = Depends(get_db)):
+    """Public login-screen capabilities.
+
+    `email_enabled` gates the "Forgot password?" (email reset) flow — it's only
+    offered when the app's SMTP is configured (Session 815, Batch 9 / your req).
+    """
+    from app.services.notifications import _smtp_config
+
+    email_ok = False
+    try:
+        email_ok = _smtp_config(db) is not None
+    except Exception:  # noqa: BLE001
+        email_ok = False
+    return {
+        "email_enabled": email_ok,
+        "local_admin_username": local_auth_username_safe(db),
+    }
+
+
+def local_auth_username_safe(db: Session) -> str | None:
+    try:
+        from app.services import local_auth
+        return local_auth.get_username(db)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# --- Change password (self-service, requires current password) ---------------
+class ChangePasswordIn(BaseModel):
+    username: str
+    old_password: str
+    new_password: str
+
+
+@auth_router.post("/change-password")
+def change_password(payload: ChangePasswordIn, db: Session = Depends(get_db)):
+    """Change your password.
+
+    - Local admin → update the stored hash after verifying the old password.
+    - Keycloak users → verify the old password via a direct-grant token, then set
+      the new password via the Keycloak Admin API (no Keycloak SMTP involved).
+    """
+    from app.services import local_auth
+
+    if len(payload.new_password or "") < 6:
+        raise HTTPException(status_code=422, detail="New password must be at least 6 characters.")
+
+    # Local admin path.
+    if local_auth.verify(db, payload.username, payload.old_password):
+        local_auth.change_password(db, payload.username, payload.old_password, payload.new_password)
+        return {"changed": True, "account": "local-admin"}
+
+    # Keycloak path: verify old password by attempting a token, then admin-reset.
+    token_url = (
+        f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
+        "/protocol/openid-connect/token"
+    )
+    try:
+        resp = httpx.post(
+            token_url,
+            data={
+                "grant_type": "password",
+                "client_id": settings.keycloak_client_id,
+                "username": payload.username,
+                "password": payload.old_password,
+            },
+            timeout=10.0,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=401, detail="Current password could not be verified.") from exc
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+    # Resolve subject and set the new (permanent) password via Admin API.
+    try:
+        kc_user = keycloak_admin.find_user_by_username(payload.username)
+        if not kc_user:
+            raise HTTPException(status_code=404, detail="User not found in Keycloak.")
+        keycloak_admin.set_password(kc_user["id"], payload.new_password, temporary=False)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"changed": True, "account": "keycloak"}
+
+
+# --- Forgot-password reset (email link; gated on app SMTP) -------------------
+class ResetRequestIn(BaseModel):
+    username: str
+
+
+class ResetConfirmIn(BaseModel):
+    token: str
+    new_password: str
+
+
+_RESET_CONFIG_PREFIX = "auth.reset."  # app_config keys hold hashed reset tokens
+
+
+def _reset_key(username: str) -> str:
+    return f"{_RESET_CONFIG_PREFIX}{username.strip().lower()}"
+
+
+@auth_router.post("/request-reset")
+def request_password_reset(payload: ResetRequestIn, db: Session = Depends(get_db)):
+    """Email a time-limited reset link (only when app SMTP is configured).
+
+    Always returns a generic 200 (don't leak which usernames exist). Stores a
+    hashed, expiring token in app_config and emails the raw token via the app's
+    SMTP. For Keycloak users the reset is consumed by the Admin API on confirm.
+    """
+    import hashlib
+    import secrets
+    import time
+
+    from app.services.notifications import _smtp_config, _send_email
+
+    smtp = None
+    try:
+        smtp = _smtp_config(db)
+    except Exception:  # noqa: BLE001
+        smtp = None
+    if smtp is None:
+        # Email reset unavailable — hide the feature.
+        raise HTTPException(status_code=400, detail="Email reset is not available (SMTP not configured).")
+
+    username = (payload.username or "").strip()
+    # Resolve a recipient email (local admin has none → can't email-reset).
+    recipient = None
+    if username.lower() != (local_auth_username_safe(db) or "").lower():
+        kc = None
+        try:
+            kc = keycloak_admin.find_user_by_username(username)
+        except Exception:  # noqa: BLE001
+            kc = None
+        recipient = (kc or {}).get("email")
+
+    # Generate + store a hashed token regardless (generic response).
+    raw = secrets.token_urlsafe(24)
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    expires = int(time.time()) + 30 * 60  # 30 minutes
+    row = db.get(AppConfig, _reset_key(username))
+    if row is None:
+        row = AppConfig(key=_reset_key(username), value_type="json",
+                        description="Password reset token (hashed).")
+        db.add(row)
+    row.value = {"hash": token_hash, "exp": expires, "username": username}
+    row.value_type = "json"
+    db.commit()
+
+    if recipient:
+        link = f"(use this token in the app) {raw}"
+        try:
+            _send_email(
+                smtp, recipient, "PFM password reset",
+                f"A password reset was requested for {username}.\n\n"
+                f"Reset token (valid 30 min):\n{raw}\n\n"
+                f"{link}\n\nIf you didn't request this, ignore this email.",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    return {"requested": True}
+
+
+@auth_router.post("/confirm-reset")
+def confirm_password_reset(payload: ResetConfirmIn, db: Session = Depends(get_db)):
+    """Consume a reset token and set the new password."""
+    import hashlib
+    import time
+
+    from app.services import local_auth
+
+    if len(payload.new_password or "") < 6:
+        raise HTTPException(status_code=422, detail="New password must be at least 6 characters.")
+
+    token_hash = hashlib.sha256((payload.token or "").encode()).hexdigest()
+    # Find the matching reset record (scan the small set of reset.* keys).
+    match = None
+    for row in db.execute(
+        select(AppConfig).where(AppConfig.key.like(_RESET_CONFIG_PREFIX + "%"))
+    ).scalars():
+        val = row.value or {}
+        if isinstance(val, dict) and val.get("hash") == token_hash:
+            match = (row, val)
+            break
+    if match is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+    row, val = match
+    if int(val.get("exp", 0)) < int(time.time()):
+        db.delete(row)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Reset token has expired.")
+
+    username = val.get("username", "")
+    # Local admin vs Keycloak user.
+    if username.lower() == (local_auth_username_safe(db) or "").lower():
+        local_auth.set_password(db, payload.new_password)
+    else:
+        try:
+            kc = keycloak_admin.find_user_by_username(username)
+            if not kc:
+                raise HTTPException(status_code=404, detail="User not found.")
+            keycloak_admin.set_password(kc["id"], payload.new_password, temporary=False)
+        except keycloak_admin.KeycloakAdminError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Consume the token (single-use).
+    db.delete(row)
+    db.commit()
+    return {"reset": True}
+
+
 class RefreshIn(BaseModel):
     refresh_token: str
 
 
 @auth_router.post("/refresh")
-def refresh_session(payload: RefreshIn):
+def refresh_session(payload: RefreshIn, db: Session = Depends(get_db)):
     """Exchange a refresh token for a fresh access token (Session 742, Bug 3).
 
-    Lets the SPA silently renew the password-fallback session so the app doesn't
-    cascade 401s once the short-lived access token expires.
+    Handles both token kinds: our **local admin** HS256 session token (re-issued
+    locally, no Keycloak) and the Keycloak refresh token.
     """
+    from app.services import local_auth
+    from app.core.security import _is_local_token
+
+    # Local admin session: re-issue a fresh local token.
+    if payload.refresh_token and _is_local_token(payload.refresh_token):
+        return local_auth.issue_token(local_auth.get_username(db))
+
     try:
         body = keycloak_admin.refresh_token(payload.refresh_token)
     except keycloak_admin.KeycloakAdminError as exc:

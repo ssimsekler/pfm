@@ -29,6 +29,13 @@ def seed_all(db: Session) -> None:
     _seed_integration_endpoints(db)
     _seed_expense_categories(db)
     _seed_credentials(db)
+    # Session 815, Batch 9: seed the Keycloak-independent local admin credential
+    # (hashed) so there's always a login that works without Keycloak.
+    try:
+        from app.services import local_auth
+        local_auth.ensure_seeded(db)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[seeder] local admin seed skipped: {exc}", flush=True)
     db.commit()
 
 

@@ -238,6 +238,66 @@ export async function refreshFallback() {
   }
 }
 
+/** Fetch public login-screen capabilities (email reset availability, etc.). */
+export async function getAuthConfig() {
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  try {
+    const resp = await fetchWithTimeout(base + "/v1/auth/config", { method: "GET" }, 8000);
+    if (!resp.ok) return { email_enabled: false };
+    return await resp.json();
+  } catch {
+    return { email_enabled: false };
+  }
+}
+
+/** Change the current password (local admin or Keycloak user). */
+export async function changePassword(username, oldPassword, newPassword) {
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  const resp = await fetchWithTimeout(base + "/v1/auth/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, old_password: oldPassword, new_password: newPassword }),
+  });
+  if (!resp.ok) {
+    let detail = "Could not change password";
+    try { detail = (await resp.json()).detail || detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return true;
+}
+
+/** Request a password-reset email (only works when app SMTP is configured). */
+export async function requestPasswordReset(username) {
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  const resp = await fetchWithTimeout(base + "/v1/auth/request-reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  });
+  if (!resp.ok) {
+    let detail = "Could not request a reset";
+    try { detail = (await resp.json()).detail || detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return true;
+}
+
+/** Consume a reset token and set a new password. */
+export async function confirmPasswordReset(token, newPassword) {
+  const base = import.meta.env.VITE_API_BASE_URL || "/api";
+  const resp = await fetchWithTimeout(base + "/v1/auth/confirm-reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  if (!resp.ok) {
+    let detail = "Could not reset password";
+    try { detail = (await resp.json()).detail || detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return true;
+}
+
 /** Whether the current session is the password-fallback (vs Keycloak SSO) one. */
 export function hasFallbackSession() {
   return Boolean(fallbackToken);
