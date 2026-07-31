@@ -20,7 +20,12 @@
       `<DatePicker>` gets `format` + `maxDate=9999-12-31` (Item 4); seeded `format.*` app
       settings (Item 18); additive `app_user.time_locale/amount_decimals/username` +
       Settings→My Profile fields. Frontend builds; backend compiles.
-    - [ ] 815-Batch 2 — Audit actor population (Item 7).
+    - [x] 815-Batch 2 — Audit actor population (Item 7) — **DONE**: `crud_router.resolve_actor()`
+      maps the caller (keycloak_subject → uuid → email) to an `app_user.uuid`, passed as `actor`
+      to `Repository.create/update/soft_delete` so `created_by`/`updated_by` are real users;
+      `_strip_audit()` drops any client-sent `created_*`/`updated_*`/`deleted_at`. Wired into the
+      generic CRUD factory **and** the dedicated transactions router. All four audit columns
+      (`created_at/by`, `updated_at/by`) already exist on every `BaseEntity`. Backend compiles.
     - [ ] 815-Batch 3 — Auth/identity/users (Items 6, 9, 10, 11, 12).
     - [ ] 815-Batch 4 — FX & stock sources (Items 3, 15).
     - [ ] 815-Batch 5 — Config UX: Credentials Store, SMTP, tabs, base-ccy (Items 16, 17, 19, 20, 22).

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud_router import build_crud_router
+from app.api.crud_router import build_crud_router, resolve_actor
 from app.api.schemas import DeleteResult, EntityOut, ORMModel, PageOut
 from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
@@ -385,7 +385,7 @@ def create_transaction(
 ):
     data = payload.model_dump(exclude_unset=True)
     _enforce_policy1(db, data)
-    obj = _txn_repo.create(db, data)
+    obj = _txn_repo.create(db, data, actor=resolve_actor(db, principal))
     return TransactionOut.model_validate(obj)
 
 
@@ -413,7 +413,7 @@ def update_transaction(
         raise HTTPException(status_code=404, detail="transaction not found")
     data = payload.model_dump(exclude_unset=True)
     _enforce_policy1(db, data)
-    obj = _txn_repo.update(db, obj, data)
+    obj = _txn_repo.update(db, obj, data, actor=resolve_actor(db, principal))
     return TransactionOut.model_validate(obj)
 
 
@@ -426,7 +426,7 @@ def delete_transaction(
     obj = _txn_repo.get(db, item_uuid)
     if obj is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    _txn_repo.soft_delete(db, obj)
+    _txn_repo.soft_delete(db, obj, actor=resolve_actor(db, principal))
     return {"deleted": True, "uuid": str(item_uuid)}
 
 

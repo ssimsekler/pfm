@@ -16,6 +16,7 @@ from typing import Any, Type
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import DeleteResult, PageOut
@@ -23,6 +24,44 @@ from app.core.database import get_db
 from app.core.security import Principal, get_current_principal, require_write
 from app.models.base import BaseEntity
 from app.services.repository import Repository
+
+# Server-managed audit columns — never accepted from the client payload (Item 7).
+_AUDIT_FIELDS = {"created_at", "created_by", "updated_at", "updated_by", "deleted_at"}
+
+
+def resolve_actor(db: Session, principal: Principal) -> uuid_lib.UUID | None:
+    """Best-effort map the caller to an `app_user.uuid` for created_by/updated_by
+    (Item 7). Resolves by keycloak_subject → uuid==sub → email. Returns None for
+    the dev fallback identity or when no local mirror exists yet."""
+    from app.models.security import AppUser
+
+    subject = principal.subject if principal.subject not in (None, "dev-user") else None
+    if subject:
+        row = db.execute(
+            select(AppUser.uuid).where(AppUser.keycloak_subject == subject)
+        ).scalar_one_or_none()
+        if row is not None:
+            return row
+        try:
+            u = uuid_lib.UUID(subject)
+            if db.get(AppUser, u) is not None:
+                return u
+        except (ValueError, TypeError):
+            pass
+    if principal.email:
+        row = db.execute(
+            select(AppUser.uuid).where(AppUser.email == principal.email)
+        ).scalar_one_or_none()
+        if row is not None:
+            return row
+    return None
+
+
+def _strip_audit(data: dict) -> dict:
+    """Drop any server-managed audit fields a client may have sent (Item 7)."""
+    for f in _AUDIT_FIELDS:
+        data.pop(f, None)
+    return data
 
 
 def build_crud_router(
@@ -87,10 +126,11 @@ def build_crud_router(
         db: Session = Depends(get_db),
         principal: Principal = Depends(require_write),
     ):
-        data = payload.model_dump(exclude_unset=True)
+        data = _strip_audit(payload.model_dump(exclude_unset=True))
         if pre_write is not None:
             pre_write(db, data, None)
-        obj = repo.create(db, data)
+        actor = resolve_actor(db, principal)
+        obj = repo.create(db, data, actor=actor)
         return out_schema.model_validate(obj)
 
     @router.get("/{item_uuid}", response_model=out_schema)
@@ -114,10 +154,11 @@ def build_crud_router(
         obj = repo.get(db, item_uuid)
         if obj is None:
             raise HTTPException(status_code=404, detail=f"{tag} not found")
-        data = payload.model_dump(exclude_unset=True)
+        data = _strip_audit(payload.model_dump(exclude_unset=True))
         if pre_write is not None:
             pre_write(db, data, obj)
-        obj = repo.update(db, obj, data)
+        actor = resolve_actor(db, principal)
+        obj = repo.update(db, obj, data, actor=actor)
         return out_schema.model_validate(obj)
 
     @router.delete("/{item_uuid}", response_model=DeleteResult)
@@ -129,7 +170,8 @@ def build_crud_router(
         obj = repo.get(db, item_uuid)
         if obj is None:
             raise HTTPException(status_code=404, detail=f"{tag} not found")
-        repo.soft_delete(db, obj)
+        actor = resolve_actor(db, principal)
+        repo.soft_delete(db, obj, actor=actor)
         return DeleteResult(uuid=item_uuid)
 
     return router
