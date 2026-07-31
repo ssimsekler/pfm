@@ -129,7 +129,9 @@ export function getUser() {
     if (t) {
       const realmRoles = (t.realm_access && t.realm_access.roles) || [];
       return {
-        name: t.name || t.preferred_username || t.email || "User",
+        // Item 12: show the username consistently (not the token's display name
+        // "PFM Administrator"), matching the Users list.
+        name: t.preferred_username || t.email || "User",
         username: t.preferred_username,
         email: t.email,
         roles: realmRoles,
@@ -148,7 +150,8 @@ export function getUser() {
       t.resource_access[KC_CLIENT_ID].roles) ||
     [];
   return {
-    name: t.name || t.preferred_username || t.email || "User",
+    // Item 12: prefer username over the token display name for consistency.
+    name: t.preferred_username || t.email || "User",
     username: t.preferred_username,
     email: t.email,
     roles: [...new Set([...realmRoles, ...clientRoles])],

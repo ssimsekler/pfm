@@ -15,6 +15,20 @@ Chronological log of key decisions. Newest decisions appended at the bottom.
 > time_locale/amount_decimals` (Item 18); profile columns `app_user.time_locale/
 > amount_decimals` (additive) + Settings→My Profile fields; also added `app_user.username`
 > (additive) ahead of the identity work. See ADR #76.
+>
+> **Session 815 — Batch 3 (Items 6, 9, 10, 11, 12):** role **Owner→Admin** (seed_data
+> ROLES + `seeder._seed_roles` renames the legacy row so grants survive; `security.py`
+> `WRITE_ROLES = {Admin, Owner, Editor}` keeps old tokens working; realm JSON adds an
+> `Admin` role and grants the seeded admin user Admin+Owner) (6). **Username min length 3**
+> enforced in the Users create form and in `create_user` (9). **Create-user 500/409 fixed**:
+> `keycloak_admin.create_user` reconciles an existing username by returning its subject;
+> `create_user` then sets the password and reuses/reactivates an existing local mirror in a
+> single committed unit with rollback-on-error (10). **Username column** + `active` status +
+> `include_inactive` on the Users list; `app_user.username` is stored on create and backfilled
+> in `_get_or_create_user` (11). AppBar + Users show the **username** (auth.js prefers
+> `preferred_username` over the token display name — fixes "PFM Administrator") (12).
+> **Deactivate/reactivate/remove** user endpoints (`keycloak_admin.set_user_enabled`/`delete_user`)
+> + Users row actions let an Admin clean up the stray `dev` users (6).
 
 | # | Decision | Rationale |
 |---|---|---|

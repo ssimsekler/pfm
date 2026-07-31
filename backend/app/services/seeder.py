@@ -214,6 +214,15 @@ def _seed_countries(db: Session) -> None:
 
 
 def _seed_roles(db: Session) -> None:
+    # Session 815, Item 6: rename a legacy "Owner" role to "Admin" so existing
+    # grants (user_role links) are preserved rather than orphaned.
+    legacy = db.execute(select(Role).where(Role.name == "Owner")).scalar_one_or_none()
+    if legacy is not None and db.execute(
+        select(Role).where(Role.name == "Admin")
+    ).scalar_one_or_none() is None:
+        legacy.name = "Admin"
+        legacy.description = "Full control incl. user administration"
+        db.flush()
     existing = {r.name for r in db.execute(select(Role)).scalars()}
     for name, desc in seed_data.ROLES:
         if name not in existing:

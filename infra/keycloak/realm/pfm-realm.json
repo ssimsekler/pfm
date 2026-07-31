@@ -6,7 +6,8 @@
   "registrationAllowed": false,
   "roles": {
     "realm": [
-      { "name": "Owner", "description": "Full control of the household workspace" },
+      { "name": "Admin", "description": "Full control incl. user administration" },
+      { "name": "Owner", "description": "Legacy alias of Admin (kept for compatibility)" },
       { "name": "Editor", "description": "Create/edit financial data" },
       { "name": "Viewer", "description": "Read-only access" }
     ]
@@ -37,7 +38,7 @@
       "credentials": [
         { "type": "password", "value": "admin", "temporary": false }
       ],
-      "realmRoles": ["Owner"]
+      "realmRoles": ["Admin", "Owner"]
     }
   ]
 }

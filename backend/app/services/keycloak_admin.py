@@ -101,7 +101,12 @@ def create_user(
         resp = httpx.post(_realm_url("/users"), json=payload, headers=headers, timeout=10.0)
     except Exception as exc:  # noqa: BLE001
         raise KeycloakAdminError(f"Keycloak create failed: {exc}") from exc
+    # If the username already exists, reconcile by returning the existing id so
+    # the caller can link/mirror it instead of hard-failing (Session 815, Item 10).
     if resp.status_code == 409:
+        existing = find_user_by_username(username)
+        if existing is not None:
+            return existing["id"]
         raise KeycloakAdminError(f"User '{username}' already exists in Keycloak.")
     if resp.status_code not in (201, 204):
         raise KeycloakAdminError(f"Create user failed ({resp.status_code}): {resp.text}")
@@ -115,6 +120,31 @@ def create_user(
     if user is None:
         raise KeycloakAdminError("User created but could not resolve its id.")
     return user["id"]
+
+
+def set_user_enabled(user_id: str, enabled: bool) -> None:
+    """Enable/disable a realm user (Session 815, Item 6 — deactivate/reactivate)."""
+    try:
+        resp = httpx.put(
+            _realm_url(f"/users/{user_id}"),
+            json={"enabled": bool(enabled)},
+            headers=_headers(),
+            timeout=10.0,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise KeycloakAdminError(f"Set enabled failed: {exc}") from exc
+    if resp.status_code not in (204, 200):
+        raise KeycloakAdminError(f"Set enabled failed ({resp.status_code}).")
+
+
+def delete_user(user_id: str) -> None:
+    """Hard-delete a realm user (Session 815, Item 6). 404 is treated as success."""
+    try:
+        resp = httpx.delete(_realm_url(f"/users/{user_id}"), headers=_headers(), timeout=10.0)
+    except Exception as exc:  # noqa: BLE001
+        raise KeycloakAdminError(f"Delete user failed: {exc}") from exc
+    if resp.status_code not in (204, 200, 404):
+        raise KeycloakAdminError(f"Delete user failed ({resp.status_code}).")
 
 
 def set_password(user_id: str, password: str, *, temporary: bool = True) -> None:

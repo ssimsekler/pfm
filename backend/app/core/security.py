@@ -19,10 +19,13 @@ from app.core.config import get_settings
 settings = get_settings()
 bearer_scheme = HTTPBearer(auto_error=False)
 
-ROLE_OWNER = "Owner"
+# Session 815, Item 6: the top role is now "Admin" (was "Owner"). "Owner" is kept
+# in the write set for backward compatibility with any not-yet-migrated tokens.
+ROLE_ADMIN = "Admin"
+ROLE_OWNER = "Owner"  # legacy alias
 ROLE_EDITOR = "Editor"
 ROLE_VIEWER = "Viewer"
-WRITE_ROLES = {ROLE_OWNER, ROLE_EDITOR}
+WRITE_ROLES = {ROLE_ADMIN, ROLE_OWNER, ROLE_EDITOR}
 
 
 @dataclass

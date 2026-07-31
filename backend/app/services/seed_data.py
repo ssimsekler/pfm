@@ -184,8 +184,10 @@ COUNTRIES: list[tuple[str, str, str, str | None]] = [
 ]
 
 # name, description
+# Session 815, Item 6: the top role is now named **Admin** (was "Owner"). The
+# seeder renames any existing "Owner" role row to "Admin" so grants are preserved.
 ROLES: list[tuple[str, str]] = [
-    ("Owner", "Full control of the household workspace"),
+    ("Admin", "Full control incl. user administration"),
     ("Editor", "Create/edit financial data"),
     ("Viewer", "Read-only access"),
 ]

@@ -190,14 +190,22 @@ def _get_or_create_user(db: Session, principal: Principal) -> AppUser | None:
                 "name": principal.username or principal.email or "User",
                 "email": principal.email,
                 "keycloak_subject": subject,
+                "username": principal.username,
             },
         )
         db.commit()
         db.refresh(user)
 
-    # Backfill the subject link if we matched by email/uuid but hadn't stored it.
+    # Backfill the subject link and username if we matched by email/uuid but
+    # hadn't stored them yet (Item 12: keep username consistent everywhere).
+    changed = False
     if user is not None and subject and not getattr(user, "keycloak_subject", None):
         user.keycloak_subject = subject
+        changed = True
+    if user is not None and principal.username and not getattr(user, "username", None):
+        user.username = principal.username
+        changed = True
+    if changed:
         db.commit()
         db.refresh(user)
 
@@ -248,9 +256,11 @@ users_router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 class UserOut(BaseModel):
     uuid: uuid_lib.UUID
+    username: str | None = None
     name: str | None = None
     email: str | None = None
     base_currency: str | None = None
+    active: bool = True
     roles: list[str] = []
     # Only populated on create when a temporary password was generated (shown once).
     temp_password: str | None = None
@@ -283,14 +293,25 @@ def _roles_for(db: Session, user_id: uuid_lib.UUID) -> list[str]:
 
 def _user_out(db: Session, user: AppUser) -> UserOut:
     return UserOut(
-        uuid=user.uuid, name=user.name, email=user.email,
-        base_currency=user.base_currency, roles=_roles_for(db, user.uuid),
+        uuid=user.uuid,
+        username=getattr(user, "username", None),
+        name=user.name, email=user.email,
+        base_currency=user.base_currency,
+        active=user.deleted_at is None,
+        roles=_roles_for(db, user.uuid),
     )
 
 
 @users_router.get("", response_model=list[UserOut])
-def list_users(db: Session = Depends(get_db), _: Principal = Depends(get_current_principal)):
-    users = db.execute(select(AppUser).where(AppUser.deleted_at.is_(None)).order_by(AppUser.name)).scalars()
+def list_users(
+    db: Session = Depends(get_db),
+    _: Principal = Depends(get_current_principal),
+    include_inactive: bool = False,
+):
+    stmt = select(AppUser)
+    if not include_inactive:
+        stmt = stmt.where(AppUser.deleted_at.is_(None))
+    users = db.execute(stmt.order_by(AppUser.name)).scalars()
     return [_user_out(db, u) for u in users]
 
 
@@ -309,40 +330,137 @@ def create_user(
     """
     from app.services.repository import Repository
 
+    username = (payload.username or "").strip()
+    if len(username) < 3:
+        raise HTTPException(status_code=422, detail="Username must be at least 3 characters.")
+
     temp_password = payload.password or secrets.token_urlsafe(9)
 
-    # 1) Keycloak provisioning (surface failures as 422 with detail).
+    # 1) Keycloak provisioning (surface failures as 422 with detail). create_user
+    #    reconciles an existing username by returning its subject (Item 10), so a
+    #    retry after a partial failure no longer dead-ends on 409.
     try:
         subject = keycloak_admin.create_user(
-            username=payload.username,
+            username=username,
             email=payload.email,
             first_name=payload.name,
             temporary_password=temp_password,
         )
+        # Ensure the password is set even when the user already existed.
+        keycloak_admin.set_password(subject, temp_password, temporary=True)
         if payload.role:
             keycloak_admin.assign_realm_role(subject, payload.role)
     except keycloak_admin.KeycloakAdminError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    # 2) Local mirror (keyed by the Keycloak subject).
-    repo = Repository(AppUser, entity_type="app_user", event_domain="app_user")
-    user = repo.create(
-        db,
-        {
-            "name": payload.name or payload.username,
-            "email": payload.email,
-            "base_currency": payload.base_currency,
-            "keycloak_subject": subject,
-        },
-    )
-    if payload.role:
-        _grant_role(db, user.uuid, payload.role)
-    db.commit()
-    db.refresh(user)
+    # 2) Local mirror (keyed by the Keycloak subject) — idempotent: if a row for
+    #    this subject already exists (from a prior partial run), reuse it instead
+    #    of creating a duplicate. All committed in one unit (Item 10).
+    try:
+        user = db.execute(
+            select(AppUser).where(AppUser.keycloak_subject == subject)
+        ).scalar_one_or_none()
+        if user is None:
+            repo = Repository(AppUser, entity_type="app_user", event_domain="app_user")
+            user = repo.create(
+                db,
+                {
+                    "name": payload.name or username,
+                    "email": payload.email,
+                    "base_currency": payload.base_currency,
+                    "keycloak_subject": subject,
+                    "username": username,
+                },
+            )
+        else:
+            # Reactivate + refresh details on an existing mirror.
+            user.deleted_at = None
+            user.username = username
+            if payload.name:
+                user.name = payload.name
+            if payload.email:
+                user.email = payload.email
+        if payload.role:
+            _grant_role(db, user.uuid, payload.role)
+        db.commit()
+        db.refresh(user)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=422, detail=f"Local mirror failed: {exc}") from exc
 
     out = _user_out(db, user)
     out.temp_password = temp_password
     return out
+
+
+# --- Deactivate / reactivate / delete (Session 815, Item 6) ------------------
+@users_router.post("/{user_id}/deactivate", response_model=UserOut)
+def deactivate_user(
+    user_id: uuid_lib.UUID,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    """Soft-deactivate: disable in Keycloak (enabled=false) + soft-delete locally."""
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    if getattr(user, "keycloak_subject", None):
+        try:
+            keycloak_admin.set_user_enabled(user.keycloak_subject, False)
+        except keycloak_admin.KeycloakAdminError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    from sqlalchemy import func as _func
+    user.deleted_at = _func.now()
+    db.commit()
+    db.refresh(user)
+    return _user_out(db, user)
+
+
+@users_router.post("/{user_id}/reactivate", response_model=UserOut)
+def reactivate_user(
+    user_id: uuid_lib.UUID,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    """Re-enable in Keycloak + clear the local soft-delete."""
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    if getattr(user, "keycloak_subject", None):
+        try:
+            keycloak_admin.set_user_enabled(user.keycloak_subject, True)
+        except keycloak_admin.KeycloakAdminError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    user.deleted_at = None
+    db.commit()
+    db.refresh(user)
+    return _user_out(db, user)
+
+
+@users_router.delete("/{user_id}")
+def delete_user(
+    user_id: uuid_lib.UUID,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_write),
+):
+    """Hard-delete the Keycloak user + remove the local mirror and its role links."""
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    if getattr(user, "keycloak_subject", None):
+        try:
+            keycloak_admin.delete_user(user.keycloak_subject)
+        except keycloak_admin.KeycloakAdminError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # Remove role links, then the mirror row.
+    for link in db.execute(select(UserRole).where(UserRole.user_id == user_id)).scalars().all():
+        db.delete(link)
+    db.delete(user)
+    db.commit()
+    return {"deleted": True, "uuid": str(user_id)}
 
 
 @users_router.patch("/{user_id}", response_model=UserOut)

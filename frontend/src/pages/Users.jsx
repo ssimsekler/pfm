@@ -1,40 +1,51 @@
-// Users admin (#14): list users (local app_user mirror), create users, and
-// grant/revoke roles (Owner/Editor/Viewer). Backed by /v1/users in admin.py.
+// Users admin (#14 + Session 815 Item 6/9/10/11/12): list users (local app_user
+// mirror) with a Username column, create users (username min length 3), grant/
+// revoke roles (Admin/Editor/Viewer), and deactivate/reactivate/remove users.
+// Backed by /v1/users in admin.py.
 import { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardHeader, CardContent, Table, TableBody, TableCell, TableHead,
   TableRow, TextField, Button, Alert, Stack, Chip, MenuItem, IconButton, Tooltip,
+  FormControlLabel, Switch,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import BlockIcon from "@mui/icons-material/Block";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import DeleteIcon from "@mui/icons-material/Delete";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { api } from "../api";
 
-const ROLES = ["Owner", "Editor", "Viewer"];
+const ROLES = ["Admin", "Editor", "Viewer"];
 
 export default function Users() {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [draft, setDraft] = useState({ username: "", name: "", email: "", base_currency: "", role: "", password: "" });
   const [grant, setGrant] = useState({}); // user_id -> role to grant
   const [tempPassword, setTempPassword] = useState(null); // shown once after create
+  const [confirmDelete, setConfirmDelete] = useState(null); // user row pending hard delete
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setRows(await api.get("/v1/users"));
+      setRows(await api.get("/v1/users", { include_inactive: showInactive ? "true" : "" }));
     } catch (e) { setError(e.message); }
-  }, []);
+  }, [showInactive]);
 
   useEffect(() => { load(); }, [load]);
 
+  const usernameError = draft.username.length > 0 && draft.username.trim().length < 3;
+
   const addUser = async () => {
-    if (!draft.username) { setError("Enter a username."); return; }
+    if (draft.username.trim().length < 3) { setError("Username must be at least 3 characters."); return; }
     setBusy(true); setError(null); setMsg(null); setTempPassword(null);
     try {
       const created = await api.post("/v1/users", {
-        username: draft.username,
+        username: draft.username.trim(),
         name: draft.name || null,
         email: draft.email || null,
         base_currency: draft.base_currency || null,
@@ -42,7 +53,7 @@ export default function Users() {
         password: draft.password || null,
       });
       setDraft({ username: "", name: "", email: "", base_currency: "", role: "", password: "" });
-      setMsg(`User “${created.name || created.uuid}” created in Keycloak.`);
+      setMsg(`User “${created.username || created.name || created.uuid}” created in Keycloak.`);
       if (created && created.temp_password) setTempPassword(created.temp_password);
       await load();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -67,28 +78,62 @@ export default function Users() {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
+  const setActive = async (u, active) => {
+    setBusy(true); setError(null); setMsg(null);
+    try {
+      await api.post(`/v1/users/${u.uuid}/${active ? "reactivate" : "deactivate"}`);
+      setMsg(active ? "User reactivated." : "User deactivated.");
+      await load();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
+  const doDelete = async () => {
+    const u = confirmDelete;
+    if (!u) return;
+    setBusy(true); setError(null); setMsg(null);
+    try {
+      await api.del(`/v1/users/${u.uuid}`);
+      setConfirmDelete(null);
+      setMsg("User removed.");
+      await load();
+    } catch (e) { setError(e.message); setConfirmDelete(null); } finally { setBusy(false); }
+  };
+
   return (
     <Box>
       <Typography variant="h5" sx={{ mb: 2 }}>Users</Typography>
       <Card>
-        <CardHeader title="Users & roles" subheader="Manage application users and their roles (Owner/Editor/Viewer)." />
+        <CardHeader title="Users & roles" subheader="Manage application users and their roles (Admin/Editor/Viewer)." />
         <CardContent>
           {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
           {msg ? <Alert severity="success" sx={{ mb: 2 }}>{msg}</Alert> : null}
 
+          <FormControlLabel
+            control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
+            label="Show deactivated users"
+            sx={{ mb: 1 }}
+          />
+
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell><TableCell>Email</TableCell>
-                <TableCell>Base ccy</TableCell><TableCell>Roles</TableCell><TableCell>Grant</TableCell>
+                <TableCell>Username</TableCell><TableCell>Name</TableCell><TableCell>Email</TableCell>
+                <TableCell>Base ccy</TableCell><TableCell>Status</TableCell>
+                <TableCell>Roles</TableCell><TableCell>Grant</TableCell><TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {rows.map((u) => (
-                <TableRow key={u.uuid} hover>
+                <TableRow key={u.uuid} hover sx={{ opacity: u.active === false ? 0.55 : 1 }}>
+                  <TableCell><code>{u.username || "—"}</code></TableCell>
                   <TableCell>{u.name}</TableCell>
                   <TableCell>{u.email || ""}</TableCell>
                   <TableCell>{u.base_currency || ""}</TableCell>
+                  <TableCell>
+                    {u.active === false
+                      ? <Chip size="small" label="Inactive" color="default" />
+                      : <Chip size="small" label="Active" color="success" variant="outlined" />}
+                  </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", gap: 0.5 }}>
                       {(u.roles || []).map((r) => (
@@ -117,10 +162,41 @@ export default function Users() {
                       </Tooltip>
                     </Stack>
                   </TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      {u.active === false ? (
+                        <Tooltip title="Reactivate">
+                          <span>
+                            <IconButton size="small" color="success" disabled={busy}
+                              onClick={() => setActive(u, true)}>
+                              <CheckCircleIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title="Deactivate">
+                          <span>
+                            <IconButton size="small" color="warning" disabled={busy}
+                              onClick={() => setActive(u, false)}>
+                              <BlockIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      )}
+                      <Tooltip title="Remove user">
+                        <span>
+                          <IconButton size="small" color="error" disabled={busy}
+                            onClick={() => { setError(null); setConfirmDelete(u); }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  </TableCell>
                 </TableRow>
               ))}
               {rows.length === 0 ? (
-                <TableRow><TableCell colSpan={5}><Typography color="text.secondary">No users yet.</Typography></TableCell></TableRow>
+                <TableRow><TableCell colSpan={8}><Typography color="text.secondary">No users yet.</Typography></TableCell></TableRow>
               ) : null}
             </TableBody>
           </Table>
@@ -133,8 +209,9 @@ export default function Users() {
           ) : null}
 
           <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>Add a user</Typography>
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: "wrap" }}>
+          <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ flexWrap: "wrap" }}>
             <TextField label="Username" size="small" required value={draft.username}
+              error={usernameError} helperText={usernameError ? "Min 3 characters" : " "}
               onChange={(e) => setDraft({ ...draft, username: e.target.value })} />
             <TextField label="Name" size="small" value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
@@ -151,17 +228,30 @@ export default function Users() {
             <TextField label="Password (optional)" size="small" type="password" value={draft.password}
               onChange={(e) => setDraft({ ...draft, password: e.target.value })}
               helperText="Leave blank to auto-generate" sx={{ width: 180 }} />
-            <Button variant="contained" startIcon={<AddIcon />} onClick={addUser} disabled={busy}>Add</Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={addUser}
+              disabled={busy || draft.username.trim().length < 3}>Add</Button>
           </Stack>
 
           <Alert severity="info" sx={{ mt: 2 }}>
             Creating a user provisions a full <b>Keycloak</b> account (username, temporary password,
-            role) and mirrors it here. The user must change the temporary password on first login.
-            A default <b>admin</b> user (password <code>admin</code>) is seeded for first login —
-            change it in Keycloak.
+            role) and mirrors it here. Deactivate disables sign-in (keeps the record); Remove deletes
+            the Keycloak account and the local mirror.
           </Alert>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        title="Remove user?"
+        message={confirmDelete
+          ? `Permanently remove "${confirmDelete.username || confirmDelete.name || confirmDelete.uuid}"? This deletes the Keycloak account and the local record. Consider Deactivate instead if you may need it later.`
+          : ""}
+        confirmText="Remove"
+        confirmColor="error"
+        busy={busy}
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </Box>
   );
 }

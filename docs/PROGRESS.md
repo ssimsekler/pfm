@@ -26,7 +26,18 @@
       `_strip_audit()` drops any client-sent `created_*`/`updated_*`/`deleted_at`. Wired into the
       generic CRUD factory **and** the dedicated transactions router. All four audit columns
       (`created_at/by`, `updated_at/by`) already exist on every `BaseEntity`. Backend compiles.
-    - [ ] 815-Batch 3 — Auth/identity/users (Items 6, 9, 10, 11, 12).
+    - [x] 815-Batch 3 — Auth/identity/users (Items 6, 9, 10, 11, 12) — **DONE**: role
+      **Owner→Admin** (seed_data ROLES + seeder renames the legacy row preserving grants +
+      security.py `WRITE_ROLES={Admin,Owner,Editor}` + realm adds `Admin` and grants admin
+      user Admin+Owner) (6); **username ≥ 3** enforced in Users create form + backend `create_user`
+      (9); **create-user 500/409 fixed** — `keycloak_admin.create_user` reconciles an existing
+      username by returning its subject, `create_user` sets the password + reuses/reactivates an
+      existing local mirror in one committed unit with rollback (10); **Username column** + `active`
+      status + `include_inactive` on Users list; `app_user.username` stored on create and backfilled
+      in `_get_or_create_user` (11); AppBar/Users now show **username** (auth.js prefers
+      `preferred_username` over the token display name) (12); **deactivate/reactivate/remove** user
+      endpoints (`keycloak_admin.set_user_enabled`/`delete_user`) + Users row actions (6). Backend
+      compiles; frontend builds.
     - [ ] 815-Batch 4 — FX & stock sources (Items 3, 15).
     - [ ] 815-Batch 5 — Config UX: Credentials Store, SMTP, tabs, base-ccy (Items 16, 17, 19, 20, 22).
     - [ ] 815-Batch 6 — Accounts numbers, tree 422 fix, Help toolbar (Items 14, 21, 2).
