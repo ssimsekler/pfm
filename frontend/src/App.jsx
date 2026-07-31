@@ -209,6 +209,13 @@ function Shell({ user }) {
     return () => window.removeEventListener("pfm:session-expired", onExpired);
   }, []);
 
+  // Guest guard (Session 815, Batch 7 follow-up): if the shell rendered without
+  // an authenticated user (e.g. the startup timeout fired, or no session yet),
+  // prompt sign-in up front so data lists don't just silently 401 / spin.
+  useEffect(() => {
+    if (!user.authenticated) setLoginOpen(true);
+  }, [user.authenticated]);
+
   // When collapsed, show icons only with a tooltip carrying the label (Bug 24).
   const navItem = (item) => {
     const button = (

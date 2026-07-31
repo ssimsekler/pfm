@@ -86,6 +86,14 @@
       `npm run build` passes (13,624 modules, no errors). **Operational note:** if
       a stale dev bundle persists, recreate the container:
       `cd infra && docker compose up -d --force-recreate frontend` then hard-refresh.
+    - [x] 815-Batch 7 (follow-up) — Data tables stuck on spinner = auth — **DONE** [ADR #78]:
+      verified backend healthy (`/api/health` 200), password-login issues tokens (200), and
+      unauthenticated `GET /v1/accounts` → **401** instantly. After the fail-safe startup the shell
+      can render as a **guest**, so list requests 401 and appeared to spin. Fixes: `api.js` wraps
+      fetch in an **AbortController + 20s timeout** (no more hanging DataGrid/BusyIndicator; readable
+      timeout/network error); a **401 while unauthenticated** now dispatches `pfm:session-expired`;
+      `App.jsx` **guest guard** auto-opens the password login dialog when the shell renders
+      unauthenticated. After sign-in the app reloads and lists populate. Frontend builds.
     - **815-Batch 7 completes Session 815 — all 21 reported items delivered + startup hardened.**
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session

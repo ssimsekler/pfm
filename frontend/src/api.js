@@ -3,7 +3,7 @@
 // Bug 3): one silent refresh + retry; if that still fails, the fallback session
 // is cleared and a `pfm:session-expired` event is dispatched so the shell can
 // prompt re-login instead of cascading raw 401 errors on every page.
-import { getToken, refreshFallback, hasFallbackSession, clearFallbackSession } from "./auth";
+import { getToken, refreshFallback, hasFallbackSession, clearFallbackSession, isAuthenticated } from "./auth";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -38,15 +38,32 @@ function formatDetail(detail) {
   return String(detail);
 }
 
+// Requests must never hang forever (otherwise DataGrid/BusyIndicator spin with
+// no feedback). Abort after a timeout so the caller's catch runs and the UI can
+// show an error / re-login prompt. (Session 815, Batch 7 follow-up.)
+const REQUEST_TIMEOUT_MS = 20000;
+
 async function doFetch(method, path, qs, body) {
   const headers = { "Content-Type": "application/json" };
   const token = getToken();
   if (token) headers["Authorization"] = "Bearer " + token;
-  return fetch(BASE + path + qs, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(BASE + path + qs, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e && e.name === "AbortError") {
+      throw new Error("Request timed out. The server did not respond.");
+    }
+    throw new Error("Network error: " + (e && e.message ? e.message : String(e)));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function request(method, path, opts) {
@@ -73,6 +90,11 @@ async function request(method, path, opts) {
       clearFallbackSession();
       notifySessionExpired();
     }
+  } else if (resp.status === 401 && !isAuthenticated()) {
+    // Guest / not-signed-in: the shell may have rendered before a completed
+    // sign-in (or the session was never established). Prompt login instead of
+    // leaving every list to fail silently with empty tables.
+    notifySessionExpired();
   }
 
   if (!resp.ok) {
