@@ -107,17 +107,59 @@ def _apply_additive_columns() -> None:
 _INIT_LOCK_KEY = 776_2011
 
 
+def _try_advisory_lock(conn, *, attempts: int = 30, delay: float = 1.0) -> bool:
+    """Acquire the init advisory lock **without blocking forever**.
+
+    The original code used the blocking `pg_advisory_lock`, which deadlocks
+    startup if a previous (wedged) process or the worker still holds the lock —
+    under `uvicorn --reload` this left the backend stuck on "Waiting for
+    application startup" and every request 502'd (Session 815, Batch 7 follow-up).
+    We now poll `pg_try_advisory_lock` for a bounded time, then proceed anyway
+    (all init steps are idempotent, so worst case two processes race harmlessly).
+    """
+    import time
+
+    for _ in range(max(1, attempts)):
+        got = conn.execute(
+            text("SELECT pg_try_advisory_lock(:k)"), {"k": _INIT_LOCK_KEY}
+        ).scalar()
+        conn.commit()
+        if got:
+            return True
+        time.sleep(delay)
+    print(
+        "[bootstrap] init advisory lock busy; proceeding without it "
+        "(init is idempotent).",
+        flush=True,
+    )
+    return False
+
+
 def init_db() -> None:
     # Serialize startup init across containers (API + worker) with a Postgres
     # advisory lock held on a single dedicated connection for the whole routine.
+    # NB: non-blocking acquisition (bounded retry) so a stale lock can't wedge
+    # startup — see _try_advisory_lock.
     lock_conn = engine.connect()
+    have_lock = False
     try:
         lock_conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.db_schema}"'))
-        lock_conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": _INIT_LOCK_KEY})
         lock_conn.commit()
+        have_lock = _try_advisory_lock(lock_conn)
 
-        if not _run_migrations():
+        # Run migrations if available. IMPORTANT: also run create_all
+        # unconditionally afterwards. `alembic upgrade head` is a no-op on a DB
+        # already stamped at head, so **new tables added to the models after the
+        # initial migration are never created** by migrations alone (this caused
+        # the startup crash where `credential_category` didn't exist and seeding
+        # raised UndefinedTable → lifespan startup failed → app never served).
+        # `create_all` only CREATES missing tables (never drops/alters), so it's
+        # safe to run every time and converges existing DBs (Session 815 fix).
+        _run_migrations()
+        try:
             Base.metadata.create_all(bind=engine)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[bootstrap] create_all skipped: {exc}", flush=True)
 
         # Converge additive schema changes on existing databases.
         try:

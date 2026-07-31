@@ -174,9 +174,26 @@ export function isAuthenticated() {
  * Password fallback login (#14): exchanges username/password for a token via the
  * backend proxy to Keycloak's direct-access grant. Returns true on success.
  */
+// Fetch with a hard timeout so the login button / silent refresh can never hang
+// forever when the backend is slow or restarting (Session 815, Batch 7 follow-up).
+async function fetchWithTimeout(url, opts, ms = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } catch (e) {
+    if (e && e.name === "AbortError") {
+      throw new Error("Request timed out. The server did not respond.");
+    }
+    throw new Error("Network error: " + (e && e.message ? e.message : String(e)));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function passwordLogin(username, password) {
   const base = import.meta.env.VITE_API_BASE_URL || "/api";
-  const resp = await fetch(base + "/v1/auth/password-login", {
+  const resp = await fetchWithTimeout(base + "/v1/auth/password-login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
