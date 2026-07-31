@@ -261,7 +261,7 @@ export const ENTITIES = {
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
       { key: "target_amount", label: "Target", money: true },
-      { key: "target_date", label: "Target Date" },
+      { key: "target_date", label: "Target Date", date: true },
       { key: "currency", label: "Currency" },
     ],
     fields: [
@@ -289,8 +289,8 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "mnemonic_id", label: "ID" },
-      { key: "period_start", label: "From" },
-      { key: "period_end", label: "To" },
+      { key: "period_start", label: "From", date: true },
+      { key: "period_end", label: "To", date: true },
       { key: "base_currency", label: "Currency" },
     ],
     fields: [
@@ -319,7 +319,7 @@ export const ENTITIES = {
     ],
     columns: [
       { key: "name", label: "Name" },
-      { key: "txn_date", label: "Date" },
+      { key: "txn_date", label: "Date", date: true },
       { key: "amount", label: "Amount", money: true },
       { key: "currency", label: "Currency" },
       { key: "is_split", label: "Split" },
@@ -416,8 +416,8 @@ export const ENTITIES = {
       { key: "base_ccy", label: "Base" },
       { key: "quote_ccy", label: "Quote" },
       { key: "rate", label: "Rate" },
-      { key: "begin_date", label: "From" },
-      { key: "end_date", label: "To" },
+      { key: "begin_date", label: "From", date: true },
+      { key: "end_date", label: "To", date: true },
     ],
     fields: [
       { name: "name", label: "Name", type: "text", required: true },

@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import { Box, Alert } from "@mui/material";
 import { api } from "../api";
+import { formatMoney, formatDate, formatDateTime } from "../format";
 
 function fmtCell(v) {
   if (v === null || v === undefined) return "";
@@ -12,12 +13,10 @@ function fmtCell(v) {
   return v;
 }
 
-// Format a monetary value to exactly 2 decimals with thousands separators.
+// Bug 21: money/date columns render using the resolved display formats
+// (profile → settings → defaults). Set `money`, `date` or `datetime` on a column.
 function fmtMoney(v) {
-  if (v === null || v === undefined || v === "") return "";
-  const n = Number(v);
-  if (!Number.isFinite(n)) return v;
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatMoney(v);
 }
 
 export default function DataTable({
@@ -70,7 +69,15 @@ export default function DataTable({
       sortable: true,
       align: c.money ? "right" : undefined,
       headerAlign: c.money ? "right" : undefined,
-      valueGetter: c.render ? undefined : (value, row) => (c.money ? fmtMoney(row[c.key]) : fmtCell(row[c.key])),
+      valueGetter: c.render
+        ? undefined
+        : (value, row) => {
+            const raw = row[c.key];
+            if (c.money) return fmtMoney(raw);
+            if (c.date) return formatDate(raw);
+            if (c.datetime) return formatDateTime(raw);
+            return fmtCell(raw);
+          },
       renderCell: c.render ? (p) => c.render(p.row) : undefined,
     }));
     if (actions) {

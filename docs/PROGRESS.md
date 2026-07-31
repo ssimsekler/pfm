@@ -54,7 +54,19 @@
       mapping; LLM-assisted category hint (gated by `llm.master_enabled`); per-row account
       deduced from `account`/`iban`/`account_number` with fallback to the commit default (Bug 18);
       `commit_import` records memory + books per-row account. Backend compiles.
-    - [ ] 742-Batch 7 — UX polish (9, 13, 14, 15, 16, 21, 24, 25)
+    - [x] 742-Batch 7 — UX polish (9, 13, 14, 15, 16, 21, 24, 25) — **DONE** [ADR #75]:
+      distinct per-item nav icons + **collapsible mini Drawer** with tooltips, persisted
+      (`pfm_nav_collapsed`) (9/24); **success toasts** on create/edit/delete in EntityManager
+      (and CFI→transaction) (13); **beneficiary inheritance** from the cash-flow item into the
+      materialized transaction (server default + pre-filled, editable dialog field) (14); Help
+      **chips expand + smooth-scroll** to the section (no dead hash anchors) (15); **greatly
+      expanded categorization-rules guide** + new Help sections for SMTP/Yahoo, loan/installment
+      link, goals, formats, import intelligence, multi-account CSV, cash projection (16); new
+      **`format.js`** display utility (profile → settings `format.*` → defaults yyyy-MM-dd / HH:mm /
+      1,234.56), initialized at startup and used by DataTable `money`/`date`/`datetime` columns (21);
+      **tree view** for Categories & Beneficiaries via `EntityTree` + `HierarchyList` (Tree/Table
+      toggle, shared Create/Edit/Delete) (25). Frontend builds; backend compiles.
+    - **742-Batch 7 completes Session 742 — all 28 reported items + New-1/New-2 delivered.**
 - **Previous Phase 11 rounds** (kept for history): UX bug-fix & feature pass rounds — fixing
   reported issues in batches; commit/push after each batch (per `.clinerules/docs-continuity.md`).
   - **Round 2 Batch 1 (DONE):** fixed create HTTP 500 on Account/Cash Flow Item/Currency Rate

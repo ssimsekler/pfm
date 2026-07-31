@@ -776,6 +776,9 @@ class MaterializeIn(BaseModel):
     account_id: uuid_lib.UUID
     amount: Decimal | None = None
     currency: str | None = None
+    # Session 742, Bug 14: beneficiary may be overridden on the dialog; when omitted
+    # it is inherited from the cash-flow item.
+    beneficiary_id: uuid_lib.UUID | None = None
 
 
 @recurring_router.post("/materialize", status_code=201)
@@ -813,6 +816,10 @@ def materialize(
         "cash_flow_item_id": item.uuid,
         "expense_item_seq_no": next_seq,
         "expense_category_id": item.expense_category_id,  # Policy 1 inheritance
+        # Bug 14: beneficiary inherited from the item unless explicitly overridden.
+        "beneficiary_id": payload.beneficiary_id
+        if payload.beneficiary_id is not None
+        else item.beneficiary_id,
         "direction_cv_id": direction_cv_id,  # inherited from flow_type
         "is_split": False,
         "note": f"Materialized from recurring item {item.mnemonic_id}",

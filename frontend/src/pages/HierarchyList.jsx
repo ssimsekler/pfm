@@ -1,52 +1,38 @@
-// Full CRUD manager (MUI): title + Create + filter bar + DataGrid (with row
-// Edit/Delete) + EntityForm dialog. Delete is confirmed (ADR #38).
+// Hierarchical entity page (Session 742, Bug 25): Expense Categories &
+// Beneficiaries. Offers a Table / Tree toggle. Table view reuses EntityManager;
+// Tree view uses EntityTree with the same Create/Edit/Delete flow.
 import { useState } from "react";
-import { Box, Button, IconButton, Stack, Typography, Snackbar, Alert, Tooltip } from "@mui/material";
+import {
+  Box, Stack, Typography, Button, ToggleButton, ToggleButtonGroup, Snackbar, Alert,
+} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import DataTable from "./DataTable";
-import EntityForm from "./EntityForm";
-import ConfirmDialog from "./ConfirmDialog";
-import FilterBar from "./FilterBar";
+import TableRowsIcon from "@mui/icons-material/TableRows";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import EntityManager from "../components/EntityManager";
+import EntityTree from "../components/EntityTree";
+import EntityForm from "../components/EntityForm";
+import ConfirmDialog from "../components/ConfirmDialog";
+import { ENTITIES } from "../entities";
 import { api } from "../api";
 
-export default function EntityManager({ entity, cfg, extra, rowActions, refreshSignal }) {
-  const idField = cfg.idField || "uuid";
-  const readOnly = Boolean(cfg.readOnly);
+export default function HierarchyList({ entity }) {
+  const cfg = ENTITIES[entity];
+  const [view, setView] = useState("tree");
   const [refreshKey, setRefreshKey] = useState(0);
   const [formRecord, setFormRecord] = useState(undefined); // undefined=closed, null=create, obj=edit
   const [deleteRow, setDeleteRow] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null); // Bug 13: success toast on save/delete
-  const [filterParams, setFilterParams] = useState({});
+  const [success, setSuccess] = useState(null);
 
+  if (!cfg) return <Typography>Unknown entity: {entity}</Typography>;
+
+  const idField = cfg.idField || "uuid";
   const refresh = () => setRefreshKey((k) => k + 1);
-
-  const actions =
-    readOnly && !(rowActions && rowActions.length)
-      ? undefined
-      : (row) => (
-          <Stack direction="row" spacing={0.5}>
-            {(rowActions || []).map((a, i) => (
-              <Tooltip key={i} title={a.tooltip || ""}>
-                <IconButton size="small" color={a.color} onClick={() => a.onClick(row, refresh)}>{a.icon}</IconButton>
-              </Tooltip>
-            ))}
-            {!readOnly ? (
-              <>
-                <Tooltip title="Edit"><IconButton size="small" onClick={() => setFormRecord(row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
-                <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => { setError(null); setDeleteRow(row); }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
-              </>
-            ) : null}
-          </Stack>
-        );
 
   async function doDelete() {
     if (!deleteRow) return;
-    setBusy(true);
-    setError(null);
+    setBusy(true); setError(null);
     try {
       await api.del(`${cfg.path}/${deleteRow[idField]}`);
       setDeleteRow(null);
@@ -55,35 +41,35 @@ export default function EntityManager({ entity, cfg, extra, rowActions, refreshS
     } catch (e) {
       setError(e.message);
       setDeleteRow(null);
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h5">{cfg.title}</Typography>
-        <Stack direction="row" spacing={1}>
-          {extra}
-          {!readOnly ? (
+        <Stack direction="row" spacing={1} alignItems="center">
+          <ToggleButtonGroup size="small" exclusive value={view}
+            onChange={(e, v) => v && setView(v)}>
+            <ToggleButton value="tree"><AccountTreeIcon fontSize="small" sx={{ mr: 0.5 }} />Tree</ToggleButton>
+            <ToggleButton value="table"><TableRowsIcon fontSize="small" sx={{ mr: 0.5 }} />Table</ToggleButton>
+          </ToggleButtonGroup>
+          {view === "tree" ? (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setFormRecord(null)}>Create</Button>
           ) : null}
         </Stack>
       </Stack>
 
-      {cfg.filterFields && cfg.filterFields.length > 0 ? (
-        <FilterBar fields={cfg.filterFields} onApply={setFilterParams} />
-      ) : null}
-
-      <DataTable
-        path={cfg.path}
-        columns={cfg.columns}
-        extraParams={filterParams}
-        refreshKey={refreshKey + (refreshSignal || 0)}
-        actions={actions}
-        getRowId={(r) => r[idField]}
-      />
+      {view === "table" ? (
+        <EntityManager entity={entity} cfg={cfg} refreshSignal={refreshKey} />
+      ) : (
+        <EntityTree
+          path={cfg.path}
+          refreshKey={refreshKey}
+          onEdit={(row) => setFormRecord(row)}
+          onDelete={(row) => { setError(null); setDeleteRow(row); }}
+        />
+      )}
 
       {formRecord !== undefined ? (
         <EntityForm
@@ -114,7 +100,6 @@ export default function EntityManager({ entity, cfg, extra, rowActions, refreshS
       <Snackbar open={Boolean(error)} autoHideDuration={6000} onClose={() => setError(null)}>
         <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>
       </Snackbar>
-
       <Snackbar open={Boolean(success)} autoHideDuration={4000} onClose={() => setSuccess(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
         <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>

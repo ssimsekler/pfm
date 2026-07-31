@@ -12,14 +12,20 @@ import ComboField from "./ComboField";
 
 const ACCOUNT_FIELD = { type: "ref", refEntity: "accounts" };
 const CCY_FIELD = { type: "ref", refEntity: "currencies", refValue: "code", refLabel: "code" };
+const BENEFICIARY_FIELD = { type: "ref", refEntity: "beneficiaries" };
 
 export default function MaterializeDialog({ item, onClose, onDone }) {
   const [accountId, setAccountId] = useState("");
   const [dueDate, setDueDate] = useState(dayjs().format("YYYY-MM-DD"));
   const [amount, setAmount] = useState(item?.expected_amount ?? "");
   const [currency, setCurrency] = useState(item?.currency || "");
+  // Bug 14: beneficiary is inherited from the cash-flow item and pre-filled here.
+  // It stays editable so the user can override for this one transaction.
+  const [beneficiaryId, setBeneficiaryId] = useState(item?.beneficiary_id || "");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  const inheritedBeneficiary = Boolean(item?.beneficiary_id);
 
   async function submit() {
     if (!accountId) { setError("Select an account."); return; }
@@ -31,6 +37,7 @@ export default function MaterializeDialog({ item, onClose, onDone }) {
         due_date: dueDate,
         amount: amount === "" ? undefined : Number(amount),
         currency: currency || undefined,
+        beneficiary_id: beneficiaryId || undefined,
       });
       onDone && onDone();
     } catch (e) {
@@ -57,6 +64,14 @@ export default function MaterializeDialog({ item, onClose, onDone }) {
             helperText="Defaults to the item's expected amount if left blank" />
           <Box>
             <ComboField field={CCY_FIELD} value={currency} onChange={setCurrency} label="Currency" />
+          </Box>
+          <Box>
+            <ComboField field={BENEFICIARY_FIELD} value={beneficiaryId} onChange={setBeneficiaryId} label="Beneficiary" />
+            {inheritedBeneficiary ? (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Inherited from the cash-flow item — you can override it for this transaction.
+              </Alert>
+            ) : null}
           </Box>
         </Stack>
       </DialogContent>
