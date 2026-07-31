@@ -186,12 +186,18 @@ export function formatHighPrecision(value) {
   if (value === null || value === undefined || value === "") return "";
   const num = Number(value);
   if (Number.isNaN(num)) return String(value);
-  const decimals = RESOLVED.amount_decimals ?? DEFAULTS.amount_decimals;
-  let out = formatNumber(num, decimals);
-  // Trim trailing zeros in the fractional part (keep at least the integer).
+  // Round to exactly N decimals (N = resolved amount_decimals), then trim
+  // trailing zeros so short values stay readable but we never exceed N.
+  const dRaw = RESOLVED.amount_decimals;
+  const decimals = Number.isFinite(Number(dRaw)) && Number(dRaw) >= 0
+    ? Number(dRaw)
+    : DEFAULTS.amount_decimals;
+  let out = formatNumber(num, decimals); // toFixed(decimals) → never exceeds N
   const { decimal } = parseNumberFormat(RESOLVED.number_format);
-  if (out.includes(decimal)) {
-    out = out.replace(new RegExp(`\\${decimal}?0+$`), "");
+  if (decimal && out.indexOf(decimal) !== -1) {
+    // Strip trailing zeros, then a dangling decimal separator.
+    out = out.replace(/0+$/, "");
+    if (out.endsWith(decimal)) out = out.slice(0, -decimal.length);
   }
   return out;
 }

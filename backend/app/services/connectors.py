@@ -71,14 +71,27 @@ def _base_url(db: Session, scenario_key: str) -> str:
 # ---------------------------------------------------------------------------
 # FX rates (Item 3): base-agnostic, with cross-rate fallback.
 # ---------------------------------------------------------------------------
+# open.er-api.com is the reliable, keyless base-agnostic default. We ALWAYS try
+# it, even if a (possibly wrong) endpoint is configured in the DB (Batch 10 fix:
+# a seeded FX_RATES row pointing at frankfurter.app was overriding this and
+# breaking every refresh).
+_ERAPI_DEFAULT = "https://open.er-api.com/v6"
+
+
 def _fetch_erapi(base_url: str, base_ccy: str, quote_ccy: str) -> Decimal | None:
-    """open.er-api.com / exchangerate.host style: /latest/{BASE} → rates map."""
+    """open.er-api.com style: /latest/{BASE} → {"rates": {...}} (or conversion_rates)."""
     for path in (f"{base_url}/latest/{base_ccy}", f"{base_url}/{base_ccy}"):
         try:
-            resp = httpx.get(path, timeout=8.0, headers={"User-Agent": _UA})
+            resp = httpx.get(
+                path, timeout=8.0, headers={"User-Agent": _UA}, follow_redirects=True
+            )
             resp.raise_for_status()
             data = resp.json()
-            rates = data.get("rates") or data.get("conversion_rates") or {}
+            # Only treat as er-api-shaped when a rates map is actually present
+            # (a Frankfurter/other URL won't have this, so we skip it cleanly).
+            rates = data.get("rates") or data.get("conversion_rates")
+            if not isinstance(rates, dict):
+                continue
             rate = rates.get(quote_ccy)
             if rate is not None:
                 return Decimal(str(rate))
@@ -165,10 +178,13 @@ def fetch_fx_rate(db: Session, base_ccy: str, quote_ccy: str, on: date | None = 
 
     base_url = _base_url(db, "FX_RATES")
 
-    # 1) Base-agnostic source (open.er-api.com or a configured exchangerate.host).
-    rate = _fetch_erapi(base_url, base_ccy, quote_ccy)
-    if rate is not None:
-        return rate
+    # 1) Base-agnostic er-api source. Always try the reliable built-in default,
+    #    plus any configured endpoint (in case it's a valid er-api mirror). This
+    #    guarantees a wrong/legacy configured endpoint can't break the refresh.
+    for url in dict.fromkeys([_ERAPI_DEFAULT, base_url]):  # de-dupe, keep order
+        rate = _fetch_erapi(url, base_ccy, quote_ccy)
+        if rate is not None:
+            return rate
 
     # 2) exchangerate.host (arbitrary base, supports historical `on`).
     rate = _fetch_exchangerate_host(base_ccy, quote_ccy, on)

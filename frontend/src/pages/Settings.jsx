@@ -10,7 +10,16 @@ import {
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import AddIcon from "@mui/icons-material/Add";
+import { Tabs, Tab } from "@mui/material";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { initFormats } from "../format";
+
+// Internal/secret app_config keys never shown in the App Settings editor
+// (Batch 10): the local-admin hashed credential and reset tokens are secrets,
+// and rendering their JSON object value showed "[object Object]".
+const HIDDEN_SETTING_KEYS = new Set(["auth.local_admin"]);
+const isHiddenKey = (k) => HIDDEN_SETTING_KEYS.has(k) || String(k).startsWith("auth.reset.");
 
 // ---------------------------------------------------------------------------
 // App Settings (key/value) — with a friendly LLM master switch on top.
@@ -91,7 +100,7 @@ function AppSettings() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((r) => (
+            {rows.filter((r) => !isHiddenKey(r.key)).map((r) => (
               <TableRow key={r.key} hover>
                 <TableCell><code>{r.key}</code></TableCell>
                 <TableCell>{r.value_type}</TableCell>
@@ -102,6 +111,12 @@ function AppSettings() {
                       checked={drafts[r.key] === true || drafts[r.key] === "true"}
                       onChange={(e) => setDrafts((d) => ({ ...d, [r.key]: e.target.checked }))}
                     />
+                  ) : r.value_type === "json" || (drafts[r.key] !== null && typeof drafts[r.key] === "object") ? (
+                    // Safe render for object/JSON values (never "[object Object]").
+                    <Typography variant="caption" component="pre"
+                      sx={{ m: 0, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+                      {(() => { try { return JSON.stringify(drafts[r.key]); } catch { return String(drafts[r.key]); } })()}
+                    </Typography>
                   ) : (
                     <TextField
                       size="small"
@@ -358,8 +373,14 @@ function MyProfile() {
     setBusy(true); setError(null); setMsg(null);
     try {
       await api.put("/v1/profile", form);
-      setMsg("Profile saved.");
+      // Batch 10: re-resolve display formats so lists/inputs reflect the new
+      // date/number/time + high-precision decimals immediately (no full reload).
+      try { await initFormats(); } catch { /* ignore */ }
+      setMsg("Profile saved. Reloading to apply display formats…");
       await load();
+      // A hard reload guarantees every already-mounted DataGrid re-renders with
+      // the new formats (they cache formatted cell values).
+      setTimeout(() => window.location.reload(), 600);
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
@@ -413,7 +434,19 @@ function MyProfile() {
 // ---------------------------------------------------------------------------
 // Page: stacks all three sections. `section` can pin one ("profile").
 // ---------------------------------------------------------------------------
+// Tabbed layout (Batch 10) — like the Configuration page; deep-linkable via ?tab=.
+const SETTINGS_TABS = [
+  { key: "app", label: "App Settings", render: () => <AppSettings /> },
+  { key: "email", label: "Email", render: () => <EmailSettings /> },
+  { key: "prefixes", label: "Entity Prefixes", render: () => <EntityPrefixes /> },
+  { key: "profile", label: "My Profile", render: () => <MyProfile /> },
+];
+
 export default function Settings({ section }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Pin to My Profile when routed via the avatar menu (#/profile).
   if (section === "profile") {
     return (
       <Box>
@@ -422,15 +455,25 @@ export default function Settings({ section }) {
       </Box>
     );
   }
+
+  // Resolve the active tab from ?tab=… (HashRouter puts the query after the hash).
+  const params = new URLSearchParams(location.search || "");
+  const tabParam = params.get("tab");
+  const activeIdx = Math.max(0, SETTINGS_TABS.findIndex((t) => t.key === tabParam));
+
+  const onTab = (_e, idx) => {
+    const key = SETTINGS_TABS[idx].key;
+    navigate(`/settings?tab=${key}`);
+  };
+
   return (
     <Box>
       <Typography variant="h5" sx={{ mb: 2 }}>Settings</Typography>
-      <Stack spacing={3}>
-        <AppSettings />
-        <EmailSettings />
-        <EntityPrefixes />
-        <MyProfile />
-      </Stack>
+      <Tabs value={activeIdx} onChange={onTab} variant="scrollable" scrollButtons="auto"
+        sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
+        {SETTINGS_TABS.map((t) => <Tab key={t.key} label={t.label} />)}
+      </Tabs>
+      {SETTINGS_TABS[activeIdx].render()}
     </Box>
   );
 }

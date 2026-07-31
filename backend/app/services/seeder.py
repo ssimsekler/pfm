@@ -215,8 +215,19 @@ def _seed_ollama_provider(db: Session) -> None:
 
 def _seed_integration_endpoints(db: Session) -> None:
     """Seed default FX/stock/crypto endpoints (Decision #18)."""
+    # Batch 10: migrate a legacy FX endpoint that pointed at frankfurter.app
+    # (now 301-redirects and isn't er-api-shaped) to the reliable keyless
+    # open.er-api.com base so refreshes work out of the box.
+    fx = db.execute(
+        select(IntegrationEndpoint).where(IntegrationEndpoint.scenario_key == "FX_RATES")
+    ).scalar_one_or_none()
+    if fx is not None and fx.base_url and "frankfurter" in fx.base_url:
+        fx.base_url = "https://open.er-api.com/v6"
+        fx.provider_name = "open.er-api.com"
+        db.flush()
+
     defaults = [
-        ("FX_RATES", "Frankfurter", "https://api.frankfurter.app"),
+        ("FX_RATES", "open.er-api.com", "https://open.er-api.com/v6"),
         ("CRYPTO_QUOTE", "CoinGecko", "https://api.coingecko.com/api/v3"),
         ("STOCK_QUOTE", "Yahoo Finance", "https://query1.finance.yahoo.com"),
     ]
