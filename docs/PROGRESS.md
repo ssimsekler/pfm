@@ -46,7 +46,22 @@
       `User-Agent` (Yahoo rejects UA-less calls), retry the bare ticker for `MSFT:NASDAQ`, and
       **fall back to Stooq** (`msft.us`) (Item 15); the existing typed `ValuationError` still
       surfaces a helpful 422 for manual-only assets. Backend compiles.
-    - [ ] 815-Batch 5 — Config UX: Credentials Store, SMTP, tabs, base-ccy (Items 16, 17, 19, 20, 22).
+    - [x] 815-Batch 5 — Config UX: Credentials Store, SMTP, tabs, base-ccy (Items 16, 17, 19, 20, 22)
+      — **DONE**: (19) **Credentials Store** — new `credential_category` (param schema incl.
+      `enum`+options and `sensitive`) + `credential` models, `/v1/credential-categories` +
+      `/v1/credentials` API with **masking** (sensitive values never returned clear; mask-preserving
+      update) + `resolve_values()` for server-side use; `CredentialsManager` with a **dynamic form**
+      (enum→combobox, password→masked). (20) dropped `smtp.*` keys + the Email(SMTP) card; kept
+      `email.enabled` + `email.credentials_ref`; `notifications._smtp_config` reads the referenced
+      credential; seeder **seeds the Email category + migrates old `smtp.*` → an Email credential**
+      then deletes the stray keys (fixes the clear-text leak); Settings has a new **Email** card that
+      picks the credential + sends a test. (16) removed the duplicate top LLM switch (the
+      `llm.master_enabled` row is the single control). (17) `reporting._reporting_ccy` resolves
+      **profile base_currency → app-config `default_base_currency` → settings**. (22) **Configuration
+      page → MUI tabs** (Code Lists, Currency Rates+FX, Recurrence, Holiday Calendars, Integrations,
+      LLM Providers, Categorization Rules, Credentials), deep-linkable via `?tab=`. Backend compiles;
+      frontend builds. (Minor follow-up: LLM/integration `credentials_ref` could become a store
+      picker too — Email path is fully migrated.)
     - [ ] 815-Batch 6 — Accounts numbers, tree 422 fix, Help toolbar (Items 14, 21, 2).
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session

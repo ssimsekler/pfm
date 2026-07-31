@@ -28,12 +28,38 @@ from app.services import fx
 settings = get_settings()
 
 
-def _reporting_ccy() -> str:
+def _reporting_ccy(db: Session | None = None, principal=None) -> str:
+    """Resolve the reporting currency with the Item 17 precedence:
+      1. the caller's profile `base_currency` (when a principal is supplied)
+      2. the app-config `default_base_currency` (editable in Settings)
+      3. the static settings default, else "USD".
+    """
+    # 1) Per-user profile base currency.
+    if db is not None and principal is not None:
+        try:
+            from app.api.crud_router import resolve_actor
+            from app.models.security import AppUser
+
+            actor = resolve_actor(db, principal)
+            if actor is not None:
+                user = db.get(AppUser, actor)
+                if user is not None and getattr(user, "base_currency", None):
+                    return str(user.base_currency)
+        except Exception:  # noqa: BLE001
+            pass
+    # 2) App-config default (Settings-editable).
+    if db is not None:
+        from app.models.meta import AppConfig
+
+        row = db.get(AppConfig, "default_base_currency")
+        if row is not None and row.value:
+            return str(row.value)
+    # 3) Static fallback.
     return settings.app_reporting_currency or "USD"
 
 
 def _to_reporting(db: Session, amount: Decimal, ccy: str, on: date) -> Decimal:
-    converted = fx.convert(db, amount, ccy, _reporting_ccy(), on)
+    converted = fx.convert(db, amount, ccy, _reporting_ccy(db), on)
     return converted if converted is not None else Decimal(amount)
 
 
@@ -55,7 +81,7 @@ def volume_by_category(db: Session, date_from: date | None, date_to: date | None
         totals[cat_name] += _to_reporting(db, Decimal(t.amount), t.currency, t.txn_date)
 
     return [
-        {"category": k, "amount": str(v), "currency": _reporting_ccy()}
+        {"category": k, "amount": str(v), "currency": _reporting_ccy(db)}
         for k, v in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
     ]
 
@@ -88,7 +114,7 @@ def volume_by_field(db: Session, field: str, date_from: date | None, date_to: da
                 label_cache[key] = "Unassigned"
         totals[key] += _to_reporting(db, Decimal(t.amount), t.currency, t.txn_date)
     return [
-        {"key": k, "label": label_cache.get(k, "Unassigned"), "amount": str(v), "currency": _reporting_ccy()}
+        {"key": k, "label": label_cache.get(k, "Unassigned"), "amount": str(v), "currency": _reporting_ccy(db)}
         for k, v in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
     ]
 
@@ -126,7 +152,7 @@ def cash_position(db: Session, as_of: date | None = None) -> dict:
 
     return {
         "as_of": on.isoformat(),
-        "reporting_currency": _reporting_ccy(),
+        "reporting_currency": _reporting_ccy(db),
         "accounts": per_account,
         "per_currency": {k: str(v) for k, v in per_currency.items()},
         "total_reporting": str(total_reporting),
@@ -150,12 +176,12 @@ def net_worth(db: Session, as_of: date | None = None) -> dict:
     for h in holdings:
         if h.current_value_cache is not None:
             investments += _to_reporting(
-                db, Decimal(h.current_value_cache), h.currency or _reporting_ccy(), on
+                db, Decimal(h.current_value_cache), h.currency or _reporting_ccy(db), on
             )
 
     return {
         "as_of": on.isoformat(),
-        "reporting_currency": _reporting_ccy(),
+        "reporting_currency": _reporting_ccy(db),
         "cash_and_accounts": cash["total_reporting"],
         "investments": str(investments),
         "net_worth": str(assets + investments),
@@ -212,7 +238,7 @@ def monthly_trend(db: Session, date_from: date | None, date_to: date | None) -> 
         }
         for m in months
     ]
-    return {"reporting_currency": _reporting_ccy(), "series": series}
+    return {"reporting_currency": _reporting_ccy(db), "series": series}
 
 
 def _add_months(d: date, n: int) -> date:
@@ -262,13 +288,13 @@ def cash_projection(db: Session, budget_id, months: int) -> dict:
         # else the loan principal if none due yet.
         past = [r for r in rows if r.due_date <= today]
         current_bal = Decimal(past[-1].balance) if past else Decimal(loan.principal or 0)
-        loan_balance0 += _to_reporting(db, current_bal, loan.currency or _reporting_ccy(), today)
+        loan_balance0 += _to_reporting(db, current_bal, loan.currency or _reporting_ccy(db), today)
         # Future principal payments bucketed by YYYY-MM.
         for r in rows:
             if r.due_date > today:
                 key = r.due_date.strftime("%Y-%m")
                 principal_by_month[key] += _to_reporting(
-                    db, Decimal(r.principal_portion or 0), loan.currency or _reporting_ccy(), r.due_date
+                    db, Decimal(r.principal_portion or 0), loan.currency or _reporting_ccy(db), r.due_date
                 )
 
     # --- Budget monthly net flow ---
@@ -314,7 +340,7 @@ def cash_projection(db: Session, budget_id, months: int) -> dict:
         })
 
     return {
-        "reporting_currency": _reporting_ccy(),
+        "reporting_currency": _reporting_ccy(db),
         "months": months,
         "monthly_net_flow": str(monthly_net.quantize(Decimal("0.01"))),
         "start": {
@@ -324,3 +350,4 @@ def cash_projection(db: Session, budget_id, months: int) -> dict:
         },
         "series": series,
     }
+

@@ -29,6 +29,22 @@ Chronological log of key decisions. Newest decisions appended at the bottom.
 > `preferred_username` over the token display name — fixes "PFM Administrator") (12).
 > **Deactivate/reactivate/remove** user endpoints (`keycloak_admin.set_user_enabled`/`delete_user`)
 > + Users row actions let an Admin clean up the stray `dev` users (6).
+>
+> **Session 815 — Batch 5 (Items 16, 17, 19, 20, 22):** new **Credentials Store**
+> (`credential_category` param-schema incl. `enum`+options and `sensitive`, + `credential`)
+> with `/v1/credential-categories` + `/v1/credentials`; sensitive values are **masked** on
+> read (never returned clear) and mask-preserving on update; `resolve_values()` serves the
+> real values to server-side consumers. `CredentialsManager` renders a **dynamic form** from
+> the category schema (enum→combobox, password→masked) (19). **Email settings moved to the
+> store**: `smtp.*` app-config keys and the Email(SMTP) card are gone; only `email.enabled` +
+> `email.credentials_ref` remain, `notifications._smtp_config` reads the referenced credential,
+> and the seeder **seeds an Email category + migrates any legacy `smtp.*` → an Email credential**
+> then deletes the stray keys (fixes the clear-text password leak) (20). Removed the duplicate
+> top LLM switch in App Settings (16). `reporting._reporting_ccy` resolves **profile
+> base_currency → app-config `default_base_currency` → settings** (17). Configuration page is
+> now **MUI tabs** (Code Lists / Currency Rates+FX / Recurrence / Holiday Calendars /
+> Integrations / LLM Providers / Categorization Rules / Credentials), deep-linkable via `?tab=`
+> (22).
 
 | # | Decision | Rationale |
 |---|---|---|

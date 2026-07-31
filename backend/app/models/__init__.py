@@ -48,6 +48,7 @@ from app.models.automation import (
     ValuationHistory,
 )
 from app.models.budgeting import Budget, BudgetLine
+from app.models.credentials import Credential, CredentialCategory
 from app.models.imports import DocumentImport, DocumentImportRow, ImportMappingMemory
 from app.models.notifications import Notification
 

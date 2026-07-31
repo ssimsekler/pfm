@@ -12,6 +12,7 @@ from app import __version__
 from app.api.admin import ALL_ROUTERS as ADMIN_ROUTERS
 from app.api.attachments_tags import ALL_ROUTERS as ATTACH_TAG_ROUTERS
 from app.api.automation import ALL_ROUTERS as AUTOMATION_ROUTERS
+from app.api.credentials import ALL_ROUTERS as CREDENTIAL_ROUTERS
 from app.api.export import ALL_ROUTERS as EXPORT_ROUTERS
 from app.api.financial import ALL_ROUTERS as FINANCIAL_ROUTERS
 from app.api.imports import ALL_ROUTERS as IMPORT_ROUTERS
@@ -49,6 +50,7 @@ for _router in [
     *TRANSFERS_FX_ROUTERS,
     *SCHEDULING_ROUTERS,
     *AUTOMATION_ROUTERS,
+    *CREDENTIAL_ROUTERS,
     *IMPORT_ROUTERS,
     *REPORTING_ROUTERS,
     *NOTIFICATION_ROUTERS,

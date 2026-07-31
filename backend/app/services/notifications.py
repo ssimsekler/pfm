@@ -50,9 +50,35 @@ def _as_bool(v) -> bool:
 
 
 def _smtp_config(db: Session) -> dict | None:
-    """Return a normalized SMTP config dict, or None when disabled/incomplete."""
-    if not _as_bool(_cfg(db, "smtp.enabled", False)):
+    """Return a normalized SMTP config dict, or None when disabled/incomplete.
+
+    Session 815, Item 20: email settings now live in the **Credentials Store**
+    (an "email" category credential). `app_config` keeps only `email.enabled` +
+    `email.credentials_ref` (pointing at that credential). We still fall back to
+    any legacy `smtp.*` keys for not-yet-migrated installs.
+    """
+    if not _as_bool(_cfg(db, "email.enabled", _cfg(db, "smtp.enabled", False))):
         return None
+
+    # Preferred: resolve the referenced credential from the Credentials Store.
+    ref = _cfg(db, "email.credentials_ref")
+    if ref:
+        from app.api.credentials import resolve_values
+
+        vals = resolve_values(db, str(ref)) or {}
+        host = vals.get("host")
+        if host:
+            return {
+                "host": str(host),
+                "port": int(vals.get("port") or 587),
+                "security": str(vals.get("security") or "starttls").lower(),
+                "username": vals.get("username"),
+                "password": vals.get("password"),
+                "from": vals.get("from") or vals.get("username") or "pfm@localhost",
+                "to": vals.get("recipient"),
+            }
+
+    # Legacy fallback: discrete smtp.* keys (pre-migration).
     host = _cfg(db, "smtp.host")
     if not host:
         return None

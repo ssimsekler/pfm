@@ -80,12 +80,9 @@ function AppSettings() {
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
         {msg ? <Alert severity="success" sx={{ mb: 2 }}>{msg}</Alert> : null}
 
-        <FormControlLabel
-          control={<Switch checked={llmEnabled} onChange={(e) => toggleLlm(e.target.checked)} disabled={busy} />}
-          label={`LLM features ${llmEnabled ? "enabled" : "disabled"}`}
-        />
-        <Divider sx={{ my: 2 }} />
-
+        {/* Item 16: the duplicate top "LLM features" switch was removed — the
+            `llm.master_enabled` row below (same input method as other settings)
+            is the single control. */}
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -156,22 +153,14 @@ function AppSettings() {
 }
 
 // ---------------------------------------------------------------------------
-// SMTP settings (Session 742, Bug 8) — generic, works with any provider.
+// Email settings (Session 815, Item 20): SMTP now lives in the Credentials Store.
+// This card only toggles `email.enabled` and picks the Email credential
+// (`email.credentials_ref`); a "Send test email" action verifies it.
 // ---------------------------------------------------------------------------
-const SMTP_KEYS = [
-  { key: "smtp.host", label: "Host", type: "string", ph: "smtp.mail.yahoo.com" },
-  { key: "smtp.port", label: "Port", type: "number", ph: "465 or 587" },
-  { key: "smtp.username", label: "Username", type: "string", ph: "you@example.com" },
-  { key: "smtp.password", label: "Password / app-password", type: "password", ph: "" },
-  { key: "smtp.from", label: "From", type: "string", ph: "you@example.com" },
-  { key: "smtp.to", label: "Default recipient (to)", type: "string", ph: "you@example.com" },
-];
-const SECURITY_OPTIONS = ["none", "starttls", "ssl"];
-
-function SmtpSettings() {
-  const [form, setForm] = useState({});
+function EmailSettings() {
   const [enabled, setEnabled] = useState(false);
-  const [security, setSecurity] = useState("starttls");
+  const [ref, setRef] = useState("");
+  const [creds, setCreds] = useState([]);
   const [testTo, setTestTo] = useState("");
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState(null);
@@ -183,11 +172,11 @@ function SmtpSettings() {
       const data = await api.get("/v1/app-config");
       const by = {};
       (data || []).forEach((r) => { by[r.key] = r.value; });
-      setEnabled(by["smtp.enabled"] === true || by["smtp.enabled"] === "true");
-      setSecurity(by["smtp.security"] || "starttls");
-      const f = {};
-      SMTP_KEYS.forEach((k) => { f[k.key] = by[k.key] ?? ""; });
-      setForm(f);
+      setEnabled(by["email.enabled"] === true || by["email.enabled"] === "true");
+      setRef(by["email.credentials_ref"] || "");
+      // Only email-category credentials are eligible.
+      const all = await api.get("/v1/credentials").catch(() => []);
+      setCreds((all || []).filter((c) => c.category_key === "email"));
     } catch (e) { setError(e.message); }
   }, []);
 
@@ -199,13 +188,9 @@ function SmtpSettings() {
   const saveAll = async () => {
     setBusy(true); setError(null); setMsg(null);
     try {
-      await put("smtp.enabled", enabled, "boolean", "Enable outgoing email (SMTP)");
-      await put("smtp.security", security, "string", "Connection security: none | starttls | ssl");
-      for (const k of SMTP_KEYS) {
-        const v = k.type === "number" ? (form[k.key] === "" ? null : Number(form[k.key])) : form[k.key];
-        await put(k.key, v, k.type === "number" ? "number" : "string", k.label);
-      }
-      setMsg("SMTP settings saved.");
+      await put("email.enabled", enabled, "boolean", "Enable outgoing email");
+      await put("email.credentials_ref", ref, "string", "Credentials Store entry (Email category) for SMTP settings");
+      setMsg("Email settings saved.");
       await load();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
@@ -220,7 +205,7 @@ function SmtpSettings() {
 
   return (
     <Card>
-      <CardHeader title="Email (SMTP)" subheader="Configure outgoing email. Works with any provider (e.g. Yahoo: smtp.mail.yahoo.com, port 465 SSL or 587 STARTTLS, using an app-password)." />
+      <CardHeader title="Email" subheader="Enable outgoing email and pick an Email credential from the Credentials Store (Configuration → Credentials). SMTP host/port/security/username/password now live there — sensitive values are masked." />
       <CardContent>
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
         {msg ? <Alert severity="success" sx={{ mb: 2 }}>{msg}</Alert> : null}
@@ -229,24 +214,20 @@ function SmtpSettings() {
           label={`Email ${enabled ? "enabled" : "disabled"}`}
         />
         <Stack spacing={2} sx={{ maxWidth: 520, mt: 1 }}>
-          {SMTP_KEYS.map((k) => (
-            <TextField key={k.key} label={k.label} size="small"
-              type={k.type === "password" ? "password" : k.type === "number" ? "number" : "text"}
-              value={form[k.key] ?? ""} placeholder={k.ph}
-              onChange={(e) => setForm((f) => ({ ...f, [k.key]: e.target.value }))} />
-          ))}
-          <TextField label="Security" size="small" select value={security}
-            onChange={(e) => setSecurity(e.target.value)}>
-            {SECURITY_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+          <TextField label="Email credential" size="small" select value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            helperText={creds.length === 0 ? "No Email credentials yet — add one under Configuration → Credentials." : "From the Credentials Store (Email category)"}>
+            <MenuItem value=""><em>None</em></MenuItem>
+            {creds.map((c) => <MenuItem key={c.mnemonic_id} value={c.mnemonic_id}>{c.name} ({c.mnemonic_id})</MenuItem>)}
           </TextField>
           <Box>
-            <Button variant="contained" startIcon={<SaveIcon />} onClick={saveAll} disabled={busy}>Save SMTP settings</Button>
+            <Button variant="contained" startIcon={<SaveIcon />} onClick={saveAll} disabled={busy}>Save email settings</Button>
           </Box>
           <Divider />
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: "wrap" }}>
             <TextField label="Send test to (optional)" size="small" value={testTo}
               onChange={(e) => setTestTo(e.target.value)} sx={{ minWidth: 240 }}
-              helperText="Blank = use the default recipient" />
+              helperText="Blank = use the credential's default recipient" />
             <Button variant="outlined" onClick={sendTest} disabled={busy}>Send test email</Button>
           </Stack>
         </Stack>
@@ -446,7 +427,7 @@ export default function Settings({ section }) {
       <Typography variant="h5" sx={{ mb: 2 }}>Settings</Typography>
       <Stack spacing={3}>
         <AppSettings />
-        <SmtpSettings />
+        <EmailSettings />
         <EntityPrefixes />
         <MyProfile />
       </Stack>

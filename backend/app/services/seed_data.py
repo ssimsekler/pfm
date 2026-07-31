@@ -195,15 +195,10 @@ ROLES: list[tuple[str, str]] = [
 # key, value, value_type, description
 APP_CONFIG: list[tuple[str, object, str, str]] = [
     ("llm.master_enabled", False, "bool", "Master switch: enables all LLM features (categorization suggestions, budget commentary). When off, the LLM gateway returns nothing."),
-    # SMTP (Session 742, Bug 8) — discrete keys usable with any provider.
-    ("smtp.enabled", False, "bool", "Enable outgoing email (SMTP)"),
-    ("smtp.host", "", "string", "SMTP host, e.g. smtp.mail.yahoo.com / smtp.gmail.com"),
-    ("smtp.port", 587, "int", "SMTP port (465 for SSL, 587 for STARTTLS)"),
-    ("smtp.security", "starttls", "string", "Connection security: none | starttls | ssl"),
-    ("smtp.username", "", "string", "SMTP username (usually the full email address)"),
-    ("smtp.password", "", "string", "SMTP password / app-password"),
-    ("smtp.from", "", "string", "Sender address (From)"),
-    ("smtp.to", "", "string", "Default recipient (used for test email / when no explicit to)"),
+    # Email (Session 815, Item 20): SMTP settings now live in the Credentials Store
+    # (category "email"); app_config keeps only the enable flag + a credentials_ref.
+    ("email.enabled", False, "bool", "Enable outgoing email"),
+    ("email.credentials_ref", "", "string", "Credentials Store entry (Email category) for SMTP settings"),
     # Display-format defaults (Session 815, Item 18) — second priority after the
     # per-user profile, before the hard-coded last-resort defaults.
     ("format.date", "yyyy-MM-dd", "string", "Default date display format (fallback after profile)"),

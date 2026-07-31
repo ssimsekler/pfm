@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.automation import IntegrationEndpoint, LlmProvider
+from app.models.credentials import Credential, CredentialCategory
 from app.models.financial import ExpenseCategory
 from app.models.meta import AppConfig, CodeList, CodeValue
 from app.models.reference import Country, Currency
@@ -27,7 +28,96 @@ def seed_all(db: Session) -> None:
     _seed_ollama_provider(db)
     _seed_integration_endpoints(db)
     _seed_expense_categories(db)
+    _seed_credentials(db)
     db.commit()
+
+
+# Email credential category parameter schema (Session 815, Item 19/20).
+_EMAIL_CATEGORY_PARAMS = [
+    {"key": "host", "label": "Host", "type": "string", "required": True,
+     "placeholder": "smtp.mail.yahoo.com"},
+    {"key": "port", "label": "Port", "type": "number", "required": True,
+     "placeholder": "465 or 587"},
+    {"key": "security", "label": "Security", "type": "enum",
+     "options": ["none", "starttls", "ssl"], "required": True},
+    {"key": "username", "label": "Username", "type": "string"},
+    {"key": "password", "label": "Password / app-password", "type": "password",
+     "sensitive": True},
+    {"key": "from", "label": "From", "type": "string"},
+    {"key": "recipient", "label": "Default recipient", "type": "string"},
+]
+
+
+def _seed_credentials(db: Session) -> None:
+    """Seed the Email credential category and migrate any legacy `smtp.*`
+    app_config keys into an Email credential (Session 815, Item 19/20).
+
+    After migration the `smtp.*` keys are deleted (they leaked the password in
+    clear text in the key/value list) and `email.enabled`/`email.credentials_ref`
+    are set to point at the new credential.
+    """
+    email_cat = db.execute(
+        select(CredentialCategory).where(CredentialCategory.category_key == "email")
+    ).scalar_one_or_none()
+    if email_cat is None:
+        email_cat = CredentialCategory(
+            mnemonic_id=next_mnemonic(db, "credential_category"),
+            name="Email (SMTP)",
+            category_key="email",
+            params=_EMAIL_CATEGORY_PARAMS,
+            is_system=True,
+        )
+        db.add(email_cat)
+        db.flush()
+    else:
+        # Keep the param schema current.
+        email_cat.params = _EMAIL_CATEGORY_PARAMS
+        db.flush()
+
+    # Migrate legacy smtp.* keys if present.
+    smtp_keys = [
+        "smtp.enabled", "smtp.host", "smtp.port", "smtp.security",
+        "smtp.username", "smtp.password", "smtp.from", "smtp.to",
+    ]
+    rows = {k: db.get(AppConfig, k) for k in smtp_keys}
+    if any(v is not None for v in rows.values()):
+        def _val(k, default=None):
+            r = rows.get(k)
+            return r.value if (r is not None and r.value is not None) else default
+
+        # Only create an Email credential if there's a host configured.
+        host = _val("smtp.host")
+        if host and not db.execute(
+            select(Credential).where(Credential.category_id == email_cat.uuid)
+        ).first():
+            cred = Credential(
+                mnemonic_id=next_mnemonic(db, "credential"),
+                name="Email (migrated from SMTP settings)",
+                category_id=email_cat.uuid,
+                values={
+                    "host": str(host),
+                    "port": _val("smtp.port", 587),
+                    "security": _val("smtp.security", "starttls"),
+                    "username": _val("smtp.username", ""),
+                    "password": _val("smtp.password", ""),
+                    "from": _val("smtp.from", ""),
+                    "recipient": _val("smtp.to", ""),
+                },
+            )
+            db.add(cred)
+            db.flush()
+            ref = db.get(AppConfig, "email.credentials_ref")
+            if ref is not None:
+                ref.value = cred.mnemonic_id
+            enabled = db.get(AppConfig, "email.enabled")
+            if enabled is not None:
+                enabled.value = bool(_val("smtp.enabled", False))
+
+        # Remove the stray smtp.* keys (clear-text password leak).
+        for r in rows.values():
+            if r is not None:
+                db.delete(r)
+        db.flush()
 
 
 def _seed_expense_categories(db: Session) -> None:
