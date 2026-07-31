@@ -370,9 +370,17 @@ def refresh_fx_rate(
     new open-ended row so a valid rate always exists (Decision #26).
     """
     on = payload.on or date.today()
-    rate = connectors.fetch_fx_rate(db, payload.base_ccy, payload.quote_ccy, on)
+    base = (payload.base_ccy or "").upper()
+    quote = (payload.quote_ccy or "").upper()
+    rate = connectors.fetch_fx_rate(db, base, quote, on)
     if rate is None:
-        raise HTTPException(status_code=422, detail="FX source returned no rate")
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"No FX source could price {base}/{quote} on {on.isoformat()}. "
+                "Check the currency codes, or add the rate manually below."
+            ),
+        )
 
     # Close any open-ended period for this pair.
     open_row = db.execute(

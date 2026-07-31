@@ -38,7 +38,14 @@
       `preferred_username` over the token display name) (12); **deactivate/reactivate/remove** user
       endpoints (`keycloak_admin.set_user_enabled`/`delete_user`) + Users row actions (6). Backend
       compiles; frontend builds.
-    - [ ] 815-Batch 4 — FX & stock sources (Items 3, 15).
+    - [x] 815-Batch 4 — FX & stock sources (Items 3, 15) — **DONE**: rewrote
+      `services/connectors.py` — **FX is base-agnostic** (default source open.er-api.com;
+      then exchangerate.host; then Frankfurter direct **or a EUR cross-rate** when the base
+      isn't ECB-supported) so **AED→USD/EUR/GBP/TRY** now resolves (Item 3); FX refresh 422 is
+      now specific (`No FX source could price AED/USD on …`). **Stock quotes** send a browser
+      `User-Agent` (Yahoo rejects UA-less calls), retry the bare ticker for `MSFT:NASDAQ`, and
+      **fall back to Stooq** (`msft.us`) (Item 15); the existing typed `ValuationError` still
+      surfaces a helpful 422 for manual-only assets. Backend compiles.
     - [ ] 815-Batch 5 — Config UX: Credentials Store, SMTP, tabs, base-ccy (Items 16, 17, 19, 20, 22).
     - [ ] 815-Batch 6 — Accounts numbers, tree 422 fix, Help toolbar (Items 14, 21, 2).
 - **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
