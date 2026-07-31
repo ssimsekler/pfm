@@ -33,6 +33,13 @@ class AppUser(BaseEntity):
     date_format: Mapped[str | None] = mapped_column(String(40), nullable=True)
     number_format: Mapped[str | None] = mapped_column(String(40), nullable=True)
     time_format: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Item 8: time locale (e.g. "en-GB"; blank → browser default).
+    time_locale: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Item 5: decimals for high-precision amounts (FX rates / investment
+    # quantities / unit prices). Everything else uses the number format (2 dp).
+    amount_decimals: Mapped[int | None] = mapped_column(nullable=True)
+    # Keycloak username mirror (Session 815, Item 11/12) — kept in sync at login/create.
+    username: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
 
 
 class Role(BaseEntity):

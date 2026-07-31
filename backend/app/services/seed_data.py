@@ -202,7 +202,14 @@ APP_CONFIG: list[tuple[str, object, str, str]] = [
     ("smtp.password", "", "string", "SMTP password / app-password"),
     ("smtp.from", "", "string", "Sender address (From)"),
     ("smtp.to", "", "string", "Default recipient (used for test email / when no explicit to)"),
-    ("default_base_currency", "USD", "string", "Reporting currency for roll-ups"),
+    # Display-format defaults (Session 815, Item 18) — second priority after the
+    # per-user profile, before the hard-coded last-resort defaults.
+    ("format.date", "yyyy-MM-dd", "string", "Default date display format (fallback after profile)"),
+    ("format.time", "HH:mm", "string", "Default time display format (fallback after profile)"),
+    ("format.number", "1,234.56", "string", "Default number display format (grouping/decimal)"),
+    ("format.time_locale", "", "string", "Default time locale (blank → browser locale)"),
+    ("format.amount_decimals", 6, "int", "Decimals for high-precision amounts (FX rates, investment quantities/unit prices)"),
+    ("default_base_currency", "USD", "string", "Reporting currency for roll-ups (overridden by a user's profile base currency)"),
     ("default_txn_currency", "AED", "string", "Default currency for new transactions"),
     ("sql_console.enabled", True, "bool", "Enable the read-only SQL console"),
     ("sql_console.row_limit", 1000, "int", "Max rows returned by SQL console"),

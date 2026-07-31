@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import { Box, Alert } from "@mui/material";
 import { api } from "../api";
-import { formatMoney, formatDate, formatDateTime } from "../format";
+import { formatMoney, formatDate, formatDateTime, formatHighPrecision } from "../format";
 
 function fmtCell(v) {
   if (v === null || v === undefined) return "";
@@ -74,6 +74,8 @@ export default function DataTable({
         : (value, row) => {
             const raw = row[c.key];
             if (c.money) return fmtMoney(raw);
+            // Item 5: FX rate / investment quantity / unit price use high precision.
+            if (c.highPrecision) return formatHighPrecision(raw);
             if (c.date) return formatDate(raw);
             if (c.datetime) return formatDateTime(raw);
             return fmtCell(raw);

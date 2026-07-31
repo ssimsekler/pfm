@@ -132,6 +132,9 @@ class ProfileOut(BaseModel):
     date_format: str | None = None
     number_format: str | None = None
     time_format: str | None = None
+    # Item 8: time locale (blank → browser default). Item 5: high-precision decimals.
+    time_locale: str | None = None
+    amount_decimals: int | None = None
 
     class Config:
         from_attributes = True
@@ -144,6 +147,8 @@ class ProfileUpdate(BaseModel):
     date_format: str | None = None
     number_format: str | None = None
     time_format: str | None = None
+    time_locale: str | None = None
+    amount_decimals: int | None = None
 
 
 def _get_or_create_user(db: Session, principal: Principal) -> AppUser | None:
@@ -211,6 +216,8 @@ def get_profile(db: Session = Depends(get_db), principal: Principal = Depends(ge
         date_format=getattr(user, "date_format", None),
         number_format=getattr(user, "number_format", None),
         time_format=getattr(user, "time_format", None),
+        time_locale=getattr(user, "time_locale", None),
+        amount_decimals=getattr(user, "amount_decimals", None),
     )
 
 
@@ -223,7 +230,8 @@ def update_profile(
     user = _get_or_create_user(db, principal)
     if user is None:
         raise HTTPException(status_code=404, detail="No user profile row for the current identity yet.")
-    for field in ["name", "email", "base_currency", "date_format", "number_format", "time_format"]:
+    for field in ["name", "email", "base_currency", "date_format", "number_format",
+                  "time_format", "time_locale", "amount_decimals"]:
         val = getattr(payload, field)
         if val is not None and hasattr(user, field):
             setattr(user, field, val)

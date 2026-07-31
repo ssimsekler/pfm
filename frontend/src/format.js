@@ -19,6 +19,11 @@ const DEFAULTS = {
   date_format: "yyyy-MM-dd",
   time_format: "HH:mm",
   number_format: "1,234.56",
+  // Item 8: no time locale set → the browser locale is used at runtime.
+  time_locale: null,
+  // Item 5: decimals for high-precision amounts (FX rates, investment
+  // quantities, investment unit prices). Everything else uses 2 dp.
+  amount_decimals: 6,
 };
 
 // Module-level resolved formats (mutated by initFormats).
@@ -74,21 +79,42 @@ export async function initFormats() {
 
   const pick = (profKey, settingKey) => {
     const p = profile && profile[profKey];
-    if (p) return p;
+    if (p !== undefined && p !== null && p !== "") return p;
     const s = settings[settingKey];
-    if (s) return s;
+    if (s !== undefined && s !== null && s !== "") return s;
     return resolved[profKey];
   };
 
   resolved.date_format = pick("date_format", "format.date");
   resolved.time_format = pick("time_format", "format.time");
   resolved.number_format = pick("number_format", "format.number");
+  // Item 8: time locale — profile → app-setting → null (browser default).
+  resolved.time_locale = pick("time_locale", "format.time_locale") || null;
+  // Item 5: high-precision decimals — profile → app-setting → default 6.
+  const ad = pick("amount_decimals", "format.amount_decimals");
+  const adNum = Number(ad);
+  resolved.amount_decimals = Number.isFinite(adNum) && adNum >= 0 ? adNum : DEFAULTS.amount_decimals;
   RESOLVED = resolved;
   return RESOLVED;
 }
 
 export function getFormats() {
   return { ...RESOLVED };
+}
+
+// The resolved date format as a dayjs token string (for <DatePicker format=…>).
+export function getDayjsDateFormat() {
+  return toDayjsFormat(RESOLVED.date_format) || "YYYY-MM-DD";
+}
+
+// The resolved time locale, or the browser locale when none is set (Item 8).
+export function getTimeLocale() {
+  if (RESOLVED.time_locale) return RESOLVED.time_locale;
+  try {
+    return (navigator.languages && navigator.languages[0]) || navigator.language || "en";
+  } catch {
+    return "en";
+  }
 }
 
 // --- Public formatters ------------------------------------------------------
@@ -149,4 +175,23 @@ export function formatMoney(value, currency) {
   if (value === null || value === undefined || value === "") return "";
   const s = formatNumber(value, 2);
   return currency ? `${s} ${currency}` : s;
+}
+
+// High-precision amounts (Item 5): FX rates, investment quantities and
+// investment unit prices only. Uses the resolved `amount_decimals` (profile →
+// app-setting → default 6) with the standard grouping/decimal separators, and
+// trims trailing zeros so short values stay readable. All *other* numbers must
+// use formatNumber/formatMoney (2 dp).
+export function formatHighPrecision(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const num = Number(value);
+  if (Number.isNaN(num)) return String(value);
+  const decimals = RESOLVED.amount_decimals ?? DEFAULTS.amount_decimals;
+  let out = formatNumber(num, decimals);
+  // Trim trailing zeros in the fractional part (keep at least the integer).
+  const { decimal } = parseNumberFormat(RESOLVED.number_format);
+  if (out.includes(decimal)) {
+    out = out.replace(new RegExp(`\\${decimal}?0+$`), "");
+  }
+  return out;
 }

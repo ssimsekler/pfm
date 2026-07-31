@@ -51,8 +51,9 @@ import AutorenewIcon from "@mui/icons-material/Autorenew";
 import PieChartIcon from "@mui/icons-material/PieChart";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 
+import dayjs from "dayjs";
 import { initAuth, getUser, login, logout, passwordLogin } from "./auth";
-import { initFormats } from "./format";
+import { initFormats, getTimeLocale } from "./format";
 import Launchpad from "./pages/Launchpad";
 import Transactions from "./pages/Transactions";
 import CashFlowItems from "./pages/CashFlowItems";
@@ -338,6 +339,22 @@ export default function App() {
       setUser(getUser());
       // Bug 21: resolve display formats (profile → settings → defaults) once auth is ready.
       try { await initFormats(); } catch { /* fall back to defaults */ }
+      // Item 8: apply the resolved time locale to dayjs (best-effort dynamic import;
+      // falls back to the built-in "en" locale if the pack isn't available).
+      try {
+        const loc = (getTimeLocale() || "en").toLowerCase();
+        if (loc && loc !== "en") {
+          await import(/* @vite-ignore */ `dayjs/locale/${loc}.js`).catch(async () => {
+            const base = loc.split("-")[0];
+            if (base && base !== loc) {
+              await import(/* @vite-ignore */ `dayjs/locale/${base}.js`).catch(() => {});
+              dayjs.locale(base);
+              return;
+            }
+          });
+          dayjs.locale(loc);
+        }
+      } catch { /* keep default locale */ }
       setReady(true);
     })();
   }, []);

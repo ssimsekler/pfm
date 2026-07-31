@@ -18,6 +18,7 @@ import {
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { api } from "../api";
+import { getDayjsDateFormat } from "../format";
 import ComboField, { clearComboCache } from "./ComboField";
 import ConfirmDialog from "./ConfirmDialog";
 import SplitEditor from "./SplitEditor";
@@ -137,6 +138,10 @@ export default function EntityForm({ entity, cfg, record, onClose, onSaved }) {
           label={f.label}
           value={val ? dayjs(val) : null}
           disabled={disabled}
+          // Item 4: honor the resolved date format and allow the open-ended
+          // sentinel 9999-12-31 (no false "error" red border).
+          format={getDayjsDateFormat()}
+          maxDate={dayjs("9999-12-31")}
           onChange={(d) => setField(f.name, d ? d.format("YYYY-MM-DD") : "")}
           slotProps={{ textField: { size: "small", fullWidth: true, required: f.required } }}
         />

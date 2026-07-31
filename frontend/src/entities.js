@@ -190,7 +190,7 @@ export const ENTITIES = {
     columns: [
       { key: "name", label: "Name" },
       { key: "symbol", label: "Symbol" },
-      { key: "quantity", label: "Quantity" },
+      { key: "quantity", label: "Quantity", highPrecision: true },
       { key: "current_value_cache", label: "Current Value", money: true },
       { key: "currency", label: "Currency" },
     ],
@@ -415,7 +415,7 @@ export const ENTITIES = {
     columns: [
       { key: "base_ccy", label: "Base" },
       { key: "quote_ccy", label: "Quote" },
-      { key: "rate", label: "Rate" },
+      { key: "rate", label: "Rate", highPrecision: true },
       { key: "begin_date", label: "From", date: true },
       { key: "end_date", label: "To", date: true },
     ],

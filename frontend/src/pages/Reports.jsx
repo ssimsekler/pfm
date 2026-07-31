@@ -10,16 +10,21 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line,
 } from "recharts";
 import { api } from "../api";
+import { formatNumber, formatMoney } from "../format";
 
 const COLORS = ["#0a3d62", "#1e88e5", "#2e7d32", "#ed6c02", "#8e24aa", "#00838f", "#c62828", "#5d4037"];
 
-// Round to 2 decimals with thousands separators for display.
+// Item 1: all chart numbers follow the resolved number format (2 dp), not raw
+// floats like "7247.956403269756".
 const money2 = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n)
-    ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : (v ?? "—");
+  if (v === null || v === undefined || v === "") return "—";
+  const s = formatMoney(v);
+  return s === "" ? "—" : s;
 };
+// Axis ticks: grouped, 2 dp.
+const axisTick = (v) => formatNumber(v, 2);
+// Tooltip/label: grouped, 2 dp.
+const tipFmt = (v) => formatNumber(v, 2);
 
 function VolumePie({ title, path }) {
   const [data, setData] = useState([]);
@@ -33,10 +38,11 @@ function VolumePie({ title, path }) {
         {data.length === 0 ? <Typography color="text.secondary">No data yet.</Typography> : (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" outerRadius={90} label>
+              <Pie data={data} dataKey="value" nameKey="name" outerRadius={90}
+                label={(e) => `${e.name}: ${tipFmt(e.value)}`}>
                 {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
-              <RTooltip /><Legend />
+              <RTooltip formatter={(v) => tipFmt(v)} /><Legend />
             </PieChart>
           </ResponsiveContainer>
         )}
@@ -65,7 +71,7 @@ function MonthlyTrend() {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" /><YAxis /><RTooltip /><Legend />
+              <XAxis dataKey="month" /><YAxis width={80} tickFormatter={axisTick} /><RTooltip formatter={(v) => tipFmt(v)} /><Legend />
               <Line type="monotone" dataKey="income" stroke="#2e7d32" />
               <Line type="monotone" dataKey="expense" stroke="#c62828" />
               <Line type="monotone" dataKey="net" stroke="#1e88e5" />
@@ -115,7 +121,7 @@ function BudgetVsActual() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" /><YAxis /><RTooltip /><Legend />
+                  <XAxis dataKey="name" /><YAxis width={80} tickFormatter={axisTick} /><RTooltip formatter={(v) => tipFmt(v)} /><Legend />
                   <Bar dataKey="expected" fill="#1e88e5" />
                   <Bar dataKey="actual" fill="#ed6c02" />
                 </BarChart>
@@ -183,7 +189,7 @@ function CashProjection() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" /><YAxis /><RTooltip /><Legend />
+                <XAxis dataKey="month" /><YAxis width={80} tickFormatter={axisTick} /><RTooltip formatter={(v) => tipFmt(v)} /><Legend />
                 <Line type="monotone" dataKey="cash" stroke="#1e88e5" />
                 <Line type="monotone" dataKey="investments" stroke="#2e7d32" />
                 <Line type="monotone" dataKey="loans" stroke="#c62828" />

@@ -2,6 +2,20 @@
 
 Chronological log of key decisions. Newest decisions appended at the bottom.
 
+> **Session 815 (prefix `815-`) — Batch 1 (Items 1, 4, 5, 8, 18):** finalized the
+> display-format engine in `frontend/src/format.js` (resolution **profile → app-config
+> `format.*` → hard default**), added **`time_locale`** (Item 8; blank → browser locale,
+> applied to dayjs in `App.jsx`) and **`amount_decimals`** (Item 5; default 6) via
+> `formatHighPrecision()`. High precision is used **only** for FX rates and investment
+> quantities/unit prices (`highPrecision` DataTable column flag; `currency-rates.rate`,
+> `investments.quantity`); all other numbers/charts use `formatNumber`/`formatMoney`
+> (2 dp). **Reports charts** now format axis ticks/tooltips/pie labels (Item 1). **Date
+> inputs** pass an explicit `format` + `maxDate=9999-12-31` so the open-ended sentinel is
+> valid — no red border (Item 4). New app-config seeds `format.date/time/number/
+> time_locale/amount_decimals` (Item 18); profile columns `app_user.time_locale/
+> amount_decimals` (additive) + Settings→My Profile fields; also added `app_user.username`
+> (additive) ahead of the identity work. See ADR #76.
+
 | # | Decision | Rationale |
 |---|---|---|
 | 1 | Backend is Python + FastAPI only (no Node hybrid for v1) | Native OpenAPI, strong for parsing/LLM/data; single runtime simplifies deploy/auth/testing. Modular so a worker can split later. |

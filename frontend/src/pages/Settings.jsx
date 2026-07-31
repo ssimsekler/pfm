@@ -349,6 +349,7 @@ function MyProfile() {
   const [form, setForm] = useState({
     name: "", email: "", base_currency: "",
     date_format: "", number_format: "", time_format: "",
+    time_locale: "", amount_decimals: "",
   });
   const [username, setUsername] = useState("");
   const [error, setError] = useState(null);
@@ -364,6 +365,8 @@ function MyProfile() {
         name: p.name || "", email: p.email || "", base_currency: p.base_currency || "",
         date_format: p.date_format || "", number_format: p.number_format || "",
         time_format: p.time_format || "",
+        time_locale: p.time_locale || "",
+        amount_decimals: p.amount_decimals ?? "",
       });
     } catch (e) { setError(e.message); }
   }, []);
@@ -409,6 +412,14 @@ function MyProfile() {
             <MenuItem value=""><em>Default</em></MenuItem>
             {NUMBER_FORMATS.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
           </TextField>
+          {/* Item 8: time locale (blank → browser default). */}
+          <TextField label="Time locale" size="small" value={form.time_locale} onChange={set("time_locale")}
+            placeholder="e.g. en-GB" helperText="Blank → use the browser locale" />
+          {/* Item 5: decimals for high-precision amounts (FX rates, investment qty/unit price). */}
+          <TextField label="Decimals for high-precision amounts" size="small" type="number"
+            value={form.amount_decimals} onChange={set("amount_decimals")}
+            inputProps={{ min: 0, max: 12 }}
+            helperText="Applies to exchange rates and investment quantities/unit prices only" />
           <Box>
             <Button variant="contained" startIcon={<SaveIcon />} onClick={save} disabled={busy}>Save profile</Button>
           </Box>

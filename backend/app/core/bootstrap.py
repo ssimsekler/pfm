@@ -48,6 +48,10 @@ _ADDITIVE_COLUMNS: list[tuple[str, str, str]] = [
     ("app_user", "time_format", "VARCHAR(40)"),
     # app_user ↔ Keycloak subject link (Session 742, Bug 1).
     ("app_user", "keycloak_subject", "VARCHAR(64)"),
+    # Session 815: time locale + high-precision decimals + username mirror.
+    ("app_user", "time_locale", "VARCHAR(20)"),
+    ("app_user", "amount_decimals", "INTEGER"),
+    ("app_user", "username", "VARCHAR(160)"),
     # holiday_calendar weekend/week-start config (Phase 11 Batch 3, A.1).
     ("holiday_calendar", "weekend_days", "JSONB"),
     ("holiday_calendar", "week_start", "SMALLINT"),

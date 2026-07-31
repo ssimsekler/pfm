@@ -48,6 +48,11 @@ ambiguous ("stuck"). To prevent this:
 - Keep `docs/PROGRESS.md` accurate enough that a fresh session can resume from
   it alone.
 - Prefer configurable/metadata-driven solutions consistent with existing ADRs.
+- **Batch prefix per session:** at the start of each work session, pick **one
+  random 3-digit number** and use it as the shared prefix for every batch in that
+  session (e.g. `815-Batch 1`, `815-Batch 2`, …). This makes changes from
+  different sessions distinguishable in commits, PROGRESS.md, and ADRs. Record the
+  chosen prefix in `docs/PROGRESS.md` "Current status".
 
 > Rationale: session memory does not persist reliably between sessions. Encoding
 > the rule in the repo (auto-loaded from `.clinerules/`) guarantees continuity.

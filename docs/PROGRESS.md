@@ -8,7 +8,24 @@
 
 ## Current status
 
-- **Active phase:** Phase 11 — **Session 742** bug-fix & feature pass (IN PROGRESS).
+- **Active phase:** Phase 11 — **Session 815** bug-fix & feature pass (IN PROGRESS).
+  Shared batch prefix **`815-`** (per `.clinerules/docs-continuity.md`: one random
+  3-digit prefix per session). Commit + push after each batch, then continue.
+  - **815-Batch checklist:**
+    - [x] 815-Batch 1 — Formatting engine (Items 1, 4, 5, 8, 18) — **DONE** [ADR #76]:
+      `format.js` resolves profile → app-config `format.*` → default; new `time_locale`
+      (Item 8, dayjs in `App.jsx`) + `amount_decimals` (Item 5) via `formatHighPrecision()`
+      used only for FX rates + investment quantity/unit price (`highPrecision` DataTable
+      flag; `currency-rates.rate`, `investments.quantity`); Reports charts formatted (Item 1);
+      `<DatePicker>` gets `format` + `maxDate=9999-12-31` (Item 4); seeded `format.*` app
+      settings (Item 18); additive `app_user.time_locale/amount_decimals/username` +
+      Settings→My Profile fields. Frontend builds; backend compiles.
+    - [ ] 815-Batch 2 — Audit actor population (Item 7).
+    - [ ] 815-Batch 3 — Auth/identity/users (Items 6, 9, 10, 11, 12).
+    - [ ] 815-Batch 4 — FX & stock sources (Items 3, 15).
+    - [ ] 815-Batch 5 — Config UX: Credentials Store, SMTP, tabs, base-ccy (Items 16, 17, 19, 20, 22).
+    - [ ] 815-Batch 6 — Accounts numbers, tree 422 fix, Help toolbar (Items 14, 21, 2).
+- **Previous phase:** Phase 11 — **Session 742** bug-fix & feature pass (COMPLETE).
   **The full, detailed plan for this session lives in `docs/PLAN.md` §10 (Phase 11 — Session
   742).** All batches use the shared prefix **`742-`**; commit + push after each batch, then
   proceed to the next without asking (per `.clinerules/docs-continuity.md`).
